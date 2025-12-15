@@ -1,138 +1,99 @@
-// Home page of the app.
-// Currently a demo placeholder "please wait" screen.
-// Replace this file with your actual app UI. Do not delete it to use some other file as homepage. Simply replace the entire contents of this file.
-
-import { useEffect, useMemo, useState } from 'react'
-import { Sparkles } from 'lucide-react'
-
-import { ThemeToggle } from '@/components/ThemeToggle'
-import { HAS_TEMPLATE_DEMO, TemplateDemo } from '@/components/TemplateDemo'
-import { Button } from '@/components/ui/button'
-import { Toaster, toast } from '@/components/ui/sonner'
-
-function formatDuration(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000))
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
-
+import { AppLayout } from "@/components/layout/AppLayout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAppStore } from "@/store/app-store";
+import { ArrowRight, BrainCircuit, Database, FlaskConical, Upload } from "lucide-react";
+import { Link } from "react-router-dom";
 export function HomePage() {
-  const [coins, setCoins] = useState(0)
-  const [isRunning, setIsRunning] = useState(false)
-  const [startedAt, setStartedAt] = useState<number | null>(null)
-  const [elapsedMs, setElapsedMs] = useState(0)
-
-  useEffect(() => {
-    if (!isRunning || startedAt === null) return
-
-    const t = setInterval(() => {
-      setElapsedMs(Date.now() - startedAt)
-    }, 250)
-
-    return () => clearInterval(t)
-  }, [isRunning, startedAt])
-
-  const formatted = useMemo(() => formatDuration(elapsedMs), [elapsedMs])
-
-  const onPleaseWait = () => {
-    setCoins((c) => c + 1)
-
-    if (!isRunning) {
-      // Resume from the current elapsed time
-      setStartedAt(Date.now() - elapsedMs)
-      setIsRunning(true)
-      toast.success('Building your app…', {
-        description: "Hang tight — we're setting everything up.",
-      })
-      return
-    }
-
-    setIsRunning(false)
-    toast.info('Still working…', {
-      description: 'You can come back in a moment.',
-    })
-  }
-
-  const onReset = () => {
-    setCoins(0)
-    setIsRunning(false)
-    setStartedAt(null)
-    setElapsedMs(0)
-    toast('Reset complete')
-  }
-
-  const onAddCoin = () => {
-    setCoins((c) => c + 1)
-    toast('Coin added')
-  }
-
+  const dataset = useAppStore(s => s.dataset);
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4 overflow-hidden relative">
-      <ThemeToggle />
-      <div className="absolute inset-0 bg-gradient-rainbow opacity-10 dark:opacity-20 pointer-events-none" />
-
-      <div className="text-center space-y-8 relative z-10 animate-fade-in w-full">
-        <div className="flex justify-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-primary floating">
-            <Sparkles className="w-8 h-8 text-white rotating" />
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <h1 className="text-5xl md:text-7xl font-display font-bold text-balance leading-tight">
-            Creating your <span className="text-gradient">app</span>
+    <AppLayout container>
+      <div className="space-y-12">
+        <section className="text-center animate-fade-in">
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-balance">
+            ChurnGuard AI
           </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto text-pretty">
-            Your application would be ready soon.
+          <p className="mt-4 max-w-2xl mx-auto text-xl text-muted-foreground text-balance">
+            A professional-grade, serverless machine learning platform for predicting customer churn with client-side training and edge deployment.
           </p>
-        </div>
-
-        {HAS_TEMPLATE_DEMO ? (
-          <div className="max-w-5xl mx-auto text-left">
-            <TemplateDemo />
+        </section>
+        <section className="animate-slide-up" style={{ animationDelay: '200ms' }}>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Card className="flex flex-col">
+              <CardHeader>
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-secondary rounded-lg">
+                    <Database className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle>1. Data Studio</CardTitle>
+                    <CardDescription>Upload & Prepare</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-grow">
+                <p className="text-muted-foreground">
+                  Start by uploading your customer dataset in CSV format. Our studio helps you inspect and prepare your data for the next step.
+                </p>
+              </CardContent>
+              <div className="p-6 pt-0">
+                <Button asChild className="w-full">
+                  <Link to="/data"><Upload className="mr-2 h-4 w-4" /> Upload Data</Link>
+                </Button>
+              </div>
+            </Card>
+            <Card className="flex flex-col">
+              <CardHeader>
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-secondary rounded-lg">
+                    <FlaskConical className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle>2. Model Lab</CardTitle>
+                    <CardDescription>Train & Evaluate</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-grow">
+                <p className="text-muted-foreground">
+                  Configure your machine learning model. Select features, choose a target, and train the model right in your browser.
+                </p>
+              </CardContent>
+              <div className="p-6 pt-0">
+                <Button asChild className="w-full" disabled={!dataset}>
+                  <Link to="/training">Go to Model Lab <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                </Button>
+              </div>
+            </Card>
+            <Card className="flex flex-col">
+              <CardHeader>
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-secondary rounded-lg">
+                    <BrainCircuit className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle>3. Prediction Center</CardTitle>
+                    <CardDescription>Deploy & Predict</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-grow">
+                <p className="text-muted-foreground">
+                  Deploy your trained model to the edge and start making real-time churn predictions for new customers via API or our interface.
+                </p>
+              </CardContent>
+              <div className="p-6 pt-0">
+                <Button asChild className="w-full" disabled>
+                  <Link to="/predict">Make Predictions <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                </Button>
+              </div>
+            </Card>
           </div>
-        ) : (
-          <>
-            <div className="flex justify-center gap-4">
-              <Button
-                size="lg"
-                onClick={onPleaseWait}
-                className="btn-gradient px-8 py-4 text-lg font-semibold hover:-translate-y-0.5 transition-all duration-200"
-                aria-live="polite"
-              >
-                Please Wait
-              </Button>
-            </div>
-
-            <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
-              <div>
-                Time elapsed:{' '}
-                <span className="font-medium tabular-nums text-foreground">{formatted}</span>
-              </div>
-              <div>
-                Coins:{' '}
-                <span className="font-medium tabular-nums text-foreground">{coins}</span>
-              </div>
-            </div>
-
-            <div className="flex justify-center gap-2">
-              <Button variant="outline" size="sm" onClick={onReset}>
-                Reset
-              </Button>
-              <Button variant="outline" size="sm" onClick={onAddCoin}>
-                Add Coin
-              </Button>
-            </div>
-          </>
-        )}
+        </section>
+        <footer className="text-center text-muted-foreground/80">
+          <p>Built with ���️ at Cloudflare</p>
+        </footer>
       </div>
-
-      <footer className="absolute bottom-8 text-center text-muted-foreground/80">
-        <p>Powered by Cloudflare</p>
-      </footer>
-
-      <Toaster richColors closeButton />
-    </div>
-  )
+    </AppLayout>
+  );
 }

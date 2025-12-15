@@ -1,72 +1,66 @@
-/* This is a demo sidebar. **COMPULSORY** Edit this file to customize the sidebar OR remove it from appLayout OR don't use appLayout at all */
 import React from "react";
-import { Home, Layers, Compass, Star, Settings, LifeBuoy } from "lucide-react";
+import { LayoutDashboard, Database, FlaskConical, BrainCircuit, Settings, LifeBuoy } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
   SidebarHeader,
-  SidebarSeparator,
-  SidebarInput,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarMenuAction,
-  SidebarMenuBadge,
 } from "@/components/ui/sidebar";
-
+import { ThemeToggle } from "./ThemeToggle";
+const navItems = [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/data", label: "Data Studio", icon: Database },
+  { href: "/training", label: "Model Lab", icon: FlaskConical },
+  { href: "/predict", label: "Prediction Center", icon: BrainCircuit },
+];
 export function AppSidebar(): JSX.Element {
+  const location = useLocation();
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1">
-          <div className="h-6 w-6 rounded-md bg-gradient-to-br from-indigo-500 to-purple-500" />
-          <span className="text-sm font-medium">Demo Sidebar</span>
+        <div className="flex items-center gap-2.5 px-2 py-1">
+          <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center">
+            <BrainCircuit className="h-4 w-4 text-white" />
+          </div>
+          <span className="text-lg font-semibold tracking-tight">ChurnGuard AI</span>
         </div>
-        <SidebarInput placeholder="Search" />
       </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive>
-                <a href="#"><Home /> <span>Home</span></a>
+      <SidebarContent className="flex-grow">
+        <SidebarMenu>
+          {navItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+              <SidebarMenuButton asChild isActive={location.pathname === item.href}>
+                <a href={item.href}>
+                  <item.icon className="h-5 w-5" /> <span>{item.label}</span>
+                </a>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild>
-                <a href="#"><Layers /> <span>Projects</span></a>
-              </SidebarMenuButton>
-              <SidebarMenuAction>
-                <Star className="size-4" />
-              </SidebarMenuAction>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild>
-                <a href="#"><Compass /> <span>Explore</span></a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroup>
-
-        <SidebarSeparator />
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Quick Links</SidebarGroupLabel>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild>
-                <a href="#"><Star /> <span>Starred</span></a>
-              </SidebarMenuButton>
-              <SidebarMenuBadge>5</SidebarMenuBadge>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroup>
+          ))}
+        </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter>
-        <div className="px-2 text-xs text-muted-foreground">A simple shadcn sidebar</div>
+      <SidebarFooter className="p-4 space-y-4">
+        <SidebarMenu>
+           <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <a href="#"><Settings className="h-5 w-5" /> <span>Settings</span></a>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <a href="#"><LifeBuoy className="h-5 w-5" /> <span>Support</span></a>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+        </SidebarMenu>
+        <div className="flex items-center justify-between px-2">
+            <div className="text-xs text-muted-foreground">
+                <p>&copy; 2024 ChurnGuard AI</p>
+            </div>
+            <ThemeToggle className="relative top-0 right-0" />
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

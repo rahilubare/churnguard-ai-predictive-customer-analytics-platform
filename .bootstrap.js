@@ -81,7 +81,9 @@ function runSetupCommands() {
     "bun add papaparse@^5.4.1",
     "bun add ml-matrix@^6.10.0",
     "bun add ml-random-forest@^2.1.0",
-    "bun install papaparse @types/papaparse"
+    "bun install papaparse @types/papaparse",
+    "bun install react-dropzone",
+    "bun install @radix-ui/react-icons"
 ];
     
     if (commands.length === 0) {

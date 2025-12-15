@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import { parseCsv, getDatasetStats } from '@/lib/data-processor';
+import { parseFile, getDatasetStats } from '@/lib/data-processor';
 import type { Dataset, ColumnStat } from '@shared/types';
 interface AppState {
   rawFile: File | null;
@@ -37,7 +37,7 @@ export const useAppStore = create<AppState & AppActions>()(
       if (!file) return;
       set({ isProcessing: true, error: null });
       try {
-        const parsedData = await parseCsv(file);
+        const parsedData = await parseFile(file);
         if (parsedData.rows.length === 0) {
           throw new Error("CSV file is empty or could not be parsed.");
         }
@@ -49,7 +49,10 @@ export const useAppStore = create<AppState & AppActions>()(
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during file processing.";
-        console.error("File processing error:", error);
+        console.error(
+          'File processing error:',
+          error instanceof Error ? error.toString() : `Non-error: ${JSON.stringify(error)}`
+        );
         set({ isProcessing: false, error: errorMessage, dataset: null, datasetStats: null });
       }
     },

@@ -2,9 +2,18 @@ import { Hono } from "hono";
 import type { Env } from './core-utils';
 import { UserEntity, ChatBoardEntity, ModelEntity } from "./entities";
 import { ok, bad, notFound, isStr } from './core-utils';
-import type { ModelArtifact, PredictionResult } from "@shared/types";
+import type { ModelArtifact, PredictionResult, BatchPredictRequest, PredictionBatchResult } from "@shared/types";
 import { RandomForestClassifier as RFClassifier } from 'ml-random-forest';
-import { Matrix } from 'ml-matrix';
+function preprocessCustomer(customer: Record<string, any>, modelArtifact: ModelArtifact): number[] {
+  return modelArtifact.features.map(feature => {
+    const value = customer[feature];
+    const encoding = modelArtifact.encodingMap[feature];
+    if (encoding) {
+      return encoding[String(value)] ?? 0; // Default to 0 for unseen categories
+    }
+    return typeof value === 'number' ? value : 0; // Default to 0 for missing numerical
+  });
+}
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.get('/api/test', (c) => c.json({ success: true, data: { name: 'CF Workers Demo' }}));
   // MODELS
@@ -26,6 +35,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       performance: body.performance || { accuracy: 0, precision: 0, recall: 0, f1: 0, rocAuc: 0, confusionMatrix: { truePositive: 0, trueNegative: 0, falsePositive: 0, falseNegative: 0 } },
       modelJson: body.modelJson,
       encodingMap: body.encodingMap || {},
+      featureImportance: body.featureImportance || {},
     };
     const created = await ModelEntity.create(c.env, newModel);
     return ok(c, created);
@@ -42,41 +52,58 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.post('/api/predict', async (c) => {
     try {
       const { modelId, customer } = await c.req.json<{ modelId: string; customer: Record<string, any> }>();
-      if (!modelId || !customer) {
-        return bad(c, 'modelId and customer data are required');
-      }
+      if (!modelId || !customer) return bad(c, 'modelId and customer data are required');
       const modelEntity = new ModelEntity(c.env, modelId);
-      if (!(await modelEntity.exists())) {
-        return notFound(c, 'Model not found');
-      }
+      if (!(await modelEntity.exists())) return notFound(c, 'Model not found');
       const modelArtifact = await modelEntity.getState();
-      const classifier = RFClassifier.load(JSON.parse(modelArtifact.modelJson));
-      const inputVector = new Matrix(1, modelArtifact.features.length);
-      modelArtifact.features.forEach((feature, i) => {
-        const value = customer[feature];
-        const encoding = modelArtifact.encodingMap[feature];
-        if (encoding) {
-          inputVector.set(0, i, encoding[String(value)] ?? 0);
-        } else {
-          inputVector.set(0, i, typeof value === 'number' ? value : 0);
-        }
-      });
+      const modelData = JSON.parse(modelArtifact.modelJson);
+      const classifier = RFClassifier.load(modelData);
+      const inputVector = [preprocessCustomer(customer, modelArtifact)];
       const predictionProbaMatrix = classifier.predictProbability(inputVector);
-      const churnProbability = predictionProbaMatrix.get(0, 1);
+      const churnProbability = predictionProbaMatrix[0][1] || 0;
       const prediction = churnProbability > 0.5 ? 1 : 0;
       const featureContributions: Record<string, number> = {};
-      modelArtifact.features.forEach(f => {
-        featureContributions[f] = Math.random() * (prediction === 1 ? 0.1 : -0.1);
+      modelArtifact.features.forEach((f, i) => {
+        const importance = modelArtifact.featureImportance?.[f] || 0;
+        const value = inputVector[0][i] || 0;
+        // Simplified SHAP-like contribution: importance * (value deviation)
+        featureContributions[f] = importance * (value - 0.5) * (prediction === 1 ? 1 : -1);
       });
-      const result: PredictionResult = {
-        churnProbability,
-        prediction,
-        featureContributions,
-      };
+      const result: PredictionResult = { churnProbability, prediction, featureContributions };
       return ok(c, result);
     } catch (error) {
       console.error("Prediction error:", error);
       return c.json({ success: false, error: 'Prediction failed' }, 500);
+    }
+  });
+  app.post('/api/batch-predict', async (c) => {
+    try {
+      const { modelId, customers } = await c.req.json<BatchPredictRequest>();
+      if (!modelId || !customers || !Array.isArray(customers)) return bad(c, 'modelId and a customer array are required');
+      if (customers.length > 1000) return bad(c, 'Batch size cannot exceed 1000 customers.');
+      const modelEntity = new ModelEntity(c.env, modelId);
+      if (!(await modelEntity.exists())) return notFound(c, 'Model not found');
+      const modelArtifact = await modelEntity.getState();
+      const modelData = JSON.parse(modelArtifact.modelJson);
+      const classifier = RFClassifier.load(modelData);
+      const predictions: PredictionResult[] = customers.map(customer => {
+        const inputVector = [preprocessCustomer(customer, modelArtifact)];
+        const predictionProbaMatrix = classifier.predictProbability(inputVector);
+        const churnProbability = predictionProbaMatrix[0][1] || 0;
+        const prediction = churnProbability > 0.5 ? 1 : 0;
+        const featureContributions: Record<string, number> = {};
+        modelArtifact.features.forEach((f, i) => {
+          const importance = modelArtifact.featureImportance?.[f] || 0;
+          const value = inputVector[0][i] || 0;
+          featureContributions[f] = importance * (value - 0.5) * (prediction === 1 ? 1 : -1);
+        });
+        return { churnProbability, prediction, featureContributions };
+      });
+      const result: PredictionBatchResult = { predictions, total: predictions.length };
+      return ok(c, result);
+    } catch (error) {
+      console.error("Batch prediction error:", error);
+      return c.json({ success: false, error: 'Batch prediction failed' }, 500);
     }
   });
   // --- DEMO ROUTES ---

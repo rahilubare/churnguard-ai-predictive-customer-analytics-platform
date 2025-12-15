@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useTransition } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,26 +21,24 @@ import { trainChurnModel } from "@/lib/ml-engine";
 import { motion } from "framer-motion";
 export function ModelLabPage() {
   const dataset = useAppStore(s => s.dataset);
-  const {
-    targetVariable,
-    selectedFeatures,
-    status,
-    progress,
-    error,
-    metrics,
-    featureImportance,
-    setConfig,
-    startTraining,
-    setTrainingState,
-    deployModel,
-  } = useTrainingStore();
+  const targetVariable = useTrainingStore(s => s.targetVariable);
+  const selectedFeatures = useTrainingStore(s => s.selectedFeatures);
+  const status = useTrainingStore(s => s.status);
+  const progress = useTrainingStore(s => s.progress);
+  const error = useTrainingStore(s => s.error);
+  const metrics = useTrainingStore(s => s.metrics);
+  const featureImportance = useTrainingStore(s => s.featureImportance);
+  const setConfig = useTrainingStore(s => s.setConfig);
+  const startTraining = useTrainingStore(s => s.startTraining);
+  const setTrainingState = useTrainingStore(s => s.setTrainingState);
+  const deployModel = useTrainingStore(s => s.deployModel);
   const [localTarget, setLocalTarget] = useState<string | undefined>(targetVariable || undefined);
   const [localFeatures, setLocalFeatures] = useState<string[]>(selectedFeatures);
   const [modelName, setModelName] = useState("");
   const [isDeployDialogOpen, setDeployDialogOpen] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [isTraining, setIsTraining] = useState(false);
   const navigate = useNavigate();
-  // Moved hooks to top level to fix conditional hook call error
   const importanceData = useMemo(() => {
     if (!featureImportance) return [];
     return Object.entries(featureImportance)
@@ -78,38 +76,39 @@ export function ModelLabPage() {
   };
   const potentialFeatures = dataset.headers.filter(h => h !== localTarget);
   const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setLocalFeatures(potentialFeatures);
-    } else {
-      setLocalFeatures([]);
-    }
+    setLocalFeatures(checked ? potentialFeatures : []);
   };
-  const handleTrainModel = () => {
+  const handleTrainModel = async () => {
     if (!localTarget || localFeatures.length === 0) {
       toast.error("Configuration incomplete", { description: "Please select a target variable and at least one feature." });
       return;
     }
     setConfig(localTarget, localFeatures);
     startTraining();
-    startTransition(async () => {
-      try {
-        setTrainingState({ status: 'preprocessing', progress: 10 });
-        const result = await trainChurnModel(dataset, localTarget, localFeatures);
-        setTrainingState({ status: 'complete', progress: 100, ...result });
-        toast.success("Training complete!");
-      } catch (e) {
-        const errorMessage = e instanceof Error ? e.message : "An unknown error occurred during training.";
-        setTrainingState({ status: 'error', error: errorMessage });
-        toast.error("Training failed", { description: errorMessage });
-      }
-    });
+    setIsTraining(true);
+    try {
+      setTrainingState({ status: 'preprocessing', progress: 10 });
+      // Yield to the browser to update UI
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const result = await trainChurnModel(dataset, localTarget, localFeatures);
+      setTrainingState({ status: 'complete', progress: 100, ...result });
+      toast.success("Training complete!");
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : "An unknown error occurred during training.";
+      setTrainingState({ status: 'error', error: errorMessage });
+      toast.error("Training failed", { description: errorMessage });
+    } finally {
+      setIsTraining(false);
+    }
   };
   const handleDeploy = async () => {
     if (!modelName.trim()) {
       toast.error("Model name is required.");
       return;
     }
+    setIsDeploying(true);
     const deployed = await deployModel(modelName.trim());
+    setIsDeploying(false);
     if (deployed) {
       toast.success(`Model "${deployed.name}" deployed successfully!`);
       setDeployDialogOpen(false);
@@ -120,7 +119,6 @@ export function ModelLabPage() {
   };
   const allFeaturesSelected = potentialFeatures.length > 0 && localFeatures.length === potentialFeatures.length;
   const COLORS = ['#10B981', '#F43F5E', '#F59E0B', '#3B82F6'];
-  const isTraining = status === 'preprocessing' || status === 'training' || status === 'evaluating' || isPending;
   return (
     <AppLayout container>
       <div className="py-8 md:py-10 lg:py-12">
@@ -188,7 +186,7 @@ export function ModelLabPage() {
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
-              {status === 'complete' && metrics && (
+              {status === 'complete' && metrics ? (
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
@@ -211,8 +209,8 @@ export function ModelLabPage() {
                           </div>
                           <DialogFooter>
                             <Button variant="outline" onClick={() => setDeployDialogOpen(false)}>Cancel</Button>
-                            <Button onClick={handleDeploy} disabled={status === 'deploying'}>
-                              {status === 'deploying' ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deploying...</> : 'Deploy'}
+                            <Button onClick={handleDeploy} disabled={isDeploying}>
+                              {isDeploying ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deploying...</> : 'Deploy'}
                             </Button>
                           </DialogFooter>
                         </DialogContent>
@@ -262,6 +260,12 @@ export function ModelLabPage() {
                     </CardContent>
                   </Card>
                 </motion.div>
+              ) : isTraining && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <Skeleton className="h-[350px]" />
+                    <Skeleton className="h-[350px]" />
+                    <div className="md:col-span-2"><Skeleton className="h-[400px]" /></div>
+                </div>
               )}
             </div>
             <div className="lg:col-span-1">

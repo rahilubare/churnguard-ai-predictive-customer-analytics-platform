@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import type { ModelMetrics, ModelArtifact } from '@shared/types';
+import type { ModelMetrics, ModelArtifact, FeatureImportance } from '@shared/types';
 import { api } from '@/lib/api-client';
 export type TrainingStatus = 'idle' | 'configuring' | 'preprocessing' | 'training' | 'evaluating' | 'complete' | 'error' | 'deploying';
 interface TrainingState {
@@ -10,7 +10,7 @@ interface TrainingState {
   progress: number;
   error: string | null;
   metrics: ModelMetrics | null;
-  featureImportance: Record<string, number> | null;
+  featureImportance: FeatureImportance | null;
   trainedModel: {
     modelJson: string;
     encodingMap: Record<string, Record<string, number>>;
@@ -54,10 +54,12 @@ export const useTrainingStore = create<TrainingState & TrainingActions>()(
       set({ status: 'preprocessing', progress: 0, error: null });
     },
     setTrainingState: (partialState) => {
-      set(partialState);
+      set((state) => {
+        Object.assign(state, partialState);
+      });
     },
     deployModel: async (modelName: string) => {
-      const { trainedModel, targetVariable, selectedFeatures, metrics } = get();
+      const { trainedModel, targetVariable, selectedFeatures, metrics, featureImportance } = get();
       if (!trainedModel || !targetVariable || !metrics) {
         set({ status: 'error', error: 'No trained model to deploy.' });
         return null;
@@ -71,6 +73,7 @@ export const useTrainingStore = create<TrainingState & TrainingActions>()(
           performance: metrics,
           modelJson: trainedModel.modelJson,
           encodingMap: trainedModel.encodingMap,
+          featureImportance: featureImportance || {},
         };
         const deployedModel = await api<ModelArtifact>('/api/models', {
           method: 'POST',

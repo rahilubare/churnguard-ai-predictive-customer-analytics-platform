@@ -6,8 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api-client";
-import type { ModelArtifact, PredictionResult } from "@shared/types";
-import { Loader2, BrainCircuit, BarChartHorizontal, Upload } from "lucide-react";
+import type { ModelArtifact, PredictionResult, PredictionBatchResult } from "@shared/types";
+import { Loader2, BrainCircuit, BarChartHorizontal } from "lucide-react";
 import { Toaster, toast } from "@/components/ui/sonner";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +17,8 @@ import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { parseCsv } from "@/lib/data-processor";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 export function PredictionCenterPage() {
   const [models, setModels] = useState<ModelArtifact[]>([]);
   const [selectedModel, setSelectedModel] = useState<ModelArtifact | null>(null);
@@ -24,16 +26,19 @@ export function PredictionCenterPage() {
   const [isPredicting, setIsPredicting] = useState(false);
   const [formData, setFormData] = useState<Record<string, string | number>>({});
   const [prediction, setPrediction] = useState<PredictionResult | null>(null);
+  const [batchFile, setBatchFile] = useState<File | null>(null);
+  const [batchResults, setBatchResults] = useState<PredictionResult[] | null>(null);
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const handleModelChange = useCallback((modelId: string, modelList: ModelArtifact[]) => {
     const model = modelList.find(m => m.id === modelId);
     if (model) {
       setSelectedModel(model);
       const initialForm: Record<string, string | number> = {};
-      model.features.forEach(feature => {
-        initialForm[feature] = '';
-      });
+      model.features.forEach(feature => { initialForm[feature] = ''; });
       setFormData(initialForm);
       setPrediction(null);
+      setBatchFile(null);
+      setBatchResults(null);
     }
   }, []);
   useEffect(() => {
@@ -79,6 +84,24 @@ export function PredictionCenterPage() {
       setIsPredicting(false);
     }
   };
+  const handleBatchProcess = async () => {
+    if (!batchFile || !selectedModel) return;
+    setIsBatchProcessing(true);
+    setBatchResults(null);
+    try {
+      const parsed = await parseCsv(batchFile);
+      const result = await api<PredictionBatchResult>('/api/batch-predict', {
+        method: 'POST',
+        body: JSON.stringify({ modelId: selectedModel.id, customers: parsed.rows }),
+      });
+      setBatchResults(result.predictions);
+      toast.success(`Successfully processed ${result.total} customers.`);
+    } catch (error) {
+      toast.error("Batch prediction failed", { description: error instanceof Error ? error.message : "An unknown error occurred." });
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
   const churnProbabilityPercent = prediction ? (prediction.churnProbability * 100).toFixed(2) : 0;
   const featureContributionData = prediction
     ? Object.entries(prediction.featureContributions)
@@ -91,27 +114,17 @@ export function PredictionCenterPage() {
         <div className="space-y-8 animate-fade-in">
           <header className="space-y-2">
             <h1 className="text-4xl font-bold tracking-tight">Prediction Center</h1>
-            <p className="text-lg text-muted-foreground">
-              Use your deployed models to predict customer churn in real-time.
-            </p>
+            <p className="text-lg text-muted-foreground">Use your deployed models to predict customer churn in real-time.</p>
           </header>
           <Card>
-            <CardHeader>
-              <CardTitle>1. Select a Deployed Model</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>1. Select a Deployed Model</CardTitle></CardHeader>
             <CardContent>
-              {isLoadingModels ? (
-                <Skeleton className="h-10 w-full" />
-              ) : models.length > 0 ? (
+              {isLoadingModels ? <Skeleton className="h-10 w-full" /> : models.length > 0 ? (
                 <Select onValueChange={(val) => handleModelChange(val, models)} value={selectedModel?.id}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a model..." />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select a model..." /></SelectTrigger>
                   <SelectContent>
                     {models.map(model => (
-                      <SelectItem key={model.id} value={model.id}>
-                        {model.name} (Trained: {new Date(model.createdAt).toLocaleDateString()})
-                      </SelectItem>
+                      <SelectItem key={model.id} value={model.id}>{model.name} (Trained: {new Date(model.createdAt).toLocaleDateString()})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -119,51 +132,33 @@ export function PredictionCenterPage() {
                 <Alert>
                   <BrainCircuit className="h-4 w-4" />
                   <AlertTitle>No Models Found</AlertTitle>
-                  <AlertDescription>
-                    You haven't deployed any models yet. Go to the Model Lab to train and deploy your first model.
-                  </AlertDescription>
+                  <AlertDescription>You haven't deployed any models yet. Go to the Model Lab to train and deploy your first model.</AlertDescription>
                 </Alert>
               )}
             </CardContent>
           </Card>
           {selectedModel && (
             <Tabs defaultValue="single">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="single">Single Prediction</TabsTrigger>
-                <TabsTrigger value="batch">Batch Prediction</TabsTrigger>
-              </TabsList>
+              <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="single">Single Prediction</TabsTrigger><TabsTrigger value="batch">Batch Prediction</TabsTrigger></TabsList>
               <TabsContent value="single">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
                   <Card>
-                    <CardHeader>
-                      <CardTitle>2. Enter Customer Data</CardTitle>
-                      <CardDescription>Fill in the features for the customer you want to score.</CardDescription>
-                    </CardHeader>
+                    <CardHeader><CardTitle>2. Enter Customer Data</CardTitle><CardDescription>Fill in the features for the customer you want to score.</CardDescription></CardHeader>
                     <CardContent className="space-y-4">
                       <ScrollArea className="h-[400px] pr-4">
                         <div className="space-y-4">
                           {selectedModel.features.map(feature => (
-                            <div key={feature}>
-                              <Label htmlFor={feature}>{feature}</Label>
-                              <Input id={feature} value={formData[feature]} onChange={(e) => handleInputChange(feature, e.target.value)} placeholder={`Enter value for ${feature}`} />
-                            </div>
+                            <div key={feature}><Label htmlFor={feature}>{feature}</Label><Input id={feature} value={formData[feature]} onChange={(e) => handleInputChange(feature, e.target.value)} placeholder={`Enter value for ${feature}`} /></div>
                           ))}
                         </div>
                       </ScrollArea>
-                      <Button onClick={handlePredict} disabled={isPredicting} className="w-full">
-                        {isPredicting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Predicting...</> : 'Predict Churn'}
-                      </Button>
+                      <Button onClick={handlePredict} disabled={isPredicting} className="w-full">{isPredicting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Predicting...</> : 'Predict Churn'}</Button>
                     </CardContent>
                   </Card>
                   <Card>
-                    <CardHeader>
-                      <CardTitle>3. Prediction Result</CardTitle>
-                      <CardDescription>The model's prediction and feature insights.</CardDescription>
-                    </CardHeader>
+                    <CardHeader><CardTitle>3. Prediction Result</CardTitle><CardDescription>The model's prediction and feature insights.</CardDescription></CardHeader>
                     <CardContent className="flex flex-col items-center justify-center min-h-[500px] space-y-4">
-                      {isPredicting ? (
-                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                      ) : prediction ? (
+                      {isPredicting ? <Loader2 className="h-12 w-12 animate-spin text-primary" /> : prediction ? (
                         <motion.div className="w-full space-y-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                           <div className="text-center">
                             <p className="text-muted-foreground">Churn Probability</p>
@@ -178,20 +173,13 @@ export function PredictionCenterPage() {
                                 <XAxis type="number" />
                                 <YAxis type="category" dataKey="name" width={100} />
                                 <Tooltip />
-                                <Bar dataKey="value">
-                                  {featureContributionData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.value > 0 ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} />
-                                  ))}
-                                </Bar>
+                                <Bar dataKey="value">{featureContributionData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.value > 0 ? 'hsl(var(--destructive))' : '#10B981'} />))}</Bar>
                               </BarChart>
                             </ResponsiveContainer>
                           </div>
                         </motion.div>
                       ) : (
-                        <div className="text-center text-muted-foreground">
-                          <BarChartHorizontal className="h-12 w-12 mx-auto mb-4" />
-                          <p>Prediction results will appear here.</p>
-                        </div>
+                        <div className="text-center text-muted-foreground"><BarChartHorizontal className="h-12 w-12 mx-auto mb-4" /><p>Prediction results will appear here.</p></div>
                       )}
                     </CardContent>
                   </Card>
@@ -199,15 +187,29 @@ export function PredictionCenterPage() {
               </TabsContent>
               <TabsContent value="batch">
                 <Card className="mt-6">
-                  <CardHeader>
-                    <CardTitle>Batch Prediction</CardTitle>
-                    <CardDescription>Upload a CSV of customers to predict churn in bulk. (This feature is a placeholder)</CardDescription>
-                  </CardHeader>
-                  <CardContent className="text-center space-y-4">
-                    <div className="mx-auto max-w-md">
-                      <FileUpload onFileSelect={() => { toast.info("Batch processing coming soon!") }} />
-                    </div>
-                    <Button disabled>Process Batch File</Button>
+                  <CardHeader><CardTitle>Batch Prediction</CardTitle><CardDescription>Upload a CSV of customers to predict churn in bulk.</CardDescription></CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="mx-auto max-w-md"><FileUpload onFileSelect={setBatchFile} /></div>
+                    <Button onClick={handleBatchProcess} disabled={!batchFile || isBatchProcessing}>{isBatchProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : 'Process Batch File'}</Button>
+                    {batchResults && (
+                      <motion.div className="mt-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                        <h3 className="font-semibold mb-2">Batch Results</h3>
+                        <ScrollArea className="h-[400px] border rounded-md">
+                          <Table>
+                            <TableHeader><TableRow><TableHead>Customer #</TableHead><TableHead>Churn Probability</TableHead><TableHead>Prediction</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                              {batchResults.map((res, i) => (
+                                <TableRow key={i}>
+                                  <TableCell>{i + 1}</TableCell>
+                                  <TableCell>{(res.churnProbability * 100).toFixed(2)}%</TableCell>
+                                  <TableCell><Badge variant={res.prediction === 1 ? 'destructive' : 'default'} className={res.prediction === 0 ? "bg-emerald-500" : ""}>{res.prediction === 1 ? 'Churn' : 'No Churn'}</Badge></TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </ScrollArea>
+                      </motion.div>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>

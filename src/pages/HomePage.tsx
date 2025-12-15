@@ -2,13 +2,13 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppStore } from "@/store/app-store";
-import { ArrowRight, BrainCircuit, Database, FlaskConical, Upload, BarChart, PieChart as PieChartIcon, AlertCircle } from "lucide-react";
+import { ArrowRight, BrainCircuit, Database, FlaskConical, Upload, BarChart as BarChartIcon, PieChart as PieChartIcon, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/api-client";
 import type { ModelArtifact } from "@shared/types";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bar, BarChart as RechartsBar, Pie, PieChart as RechartsPie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
+import { Bar, BarChart, Pie, PieChart, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from "recharts";
 import { motion } from "framer-motion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 const riskData = [
@@ -16,6 +16,10 @@ const riskData = [
   { name: 'Medium Risk', value: 20, color: '#F59E0B' },
   { name: 'High Risk', value: 10, color: '#F43F5E' },
 ];
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 },
+};
 export function HomePage() {
   const [models, setModels] = useState<ModelArtifact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,16 +38,25 @@ export function HomePage() {
     fetchModels();
   }, []);
   const recentModels = useMemo(() => models.slice(0, 5), [models]);
-  const averageAccuracy = useMemo(() => {
-    if (models.length === 0) return 0;
-    const total = models.reduce((acc, m) => acc + m.performance.accuracy, 0);
-    return (total / models.length) * 100;
+  const averageMetrics = useMemo(() => {
+    if (models.length === 0) return { accuracy: 0, f1: 0, rocAuc: 0 };
+    const total = models.reduce((acc, m) => {
+      acc.accuracy += m.performance.accuracy;
+      acc.f1 += m.performance.f1;
+      acc.rocAuc += m.performance.rocAuc;
+      return acc;
+    }, { accuracy: 0, f1: 0, rocAuc: 0 });
+    return {
+      accuracy: (total.accuracy / models.length) * 100,
+      f1: (total.f1 / models.length) * 100,
+      rocAuc: (total.rocAuc / models.length) * 100,
+    };
   }, [models]);
   return (
     <AppLayout container>
       <div className="py-8 md:py-10 lg:py-12">
         <div className="space-y-12">
-          <motion.section 
+          <motion.section
             className="text-center"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -78,46 +91,52 @@ export function HomePage() {
               </Alert>
             </motion.div>
           ) : (
-            <motion.section 
+            <motion.section
               className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
+              initial="hidden"
+              animate="visible"
+              variants={{ visible: { transition: { staggerChildren: 0.1 } } }}
             >
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Deployed Models</CardTitle>
-                  <BrainCircuit className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{models.length}</div>
-                  <p className="text-xs text-muted-foreground">Total models trained and deployed</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Average Accuracy</CardTitle>
-                  <BarChart className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{averageAccuracy.toFixed(2)}%</div>
-                  <p className="text-xs text-muted-foreground">Across all deployed models</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Global Churn Risk</CardTitle>
-                  <PieChartIcon className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-destructive">10% High Risk</div>
-                  <p className="text-xs text-muted-foreground">Mock data based on industry average</p>
-                </CardContent>
-              </Card>
+              <motion.div variants={cardVariants}>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Deployed Models</CardTitle>
+                    <BrainCircuit className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{models.length}</div>
+                    <p className="text-xs text-muted-foreground">Total models trained and deployed</p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+              <motion.div variants={cardVariants}>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Average Accuracy</CardTitle>
+                    <BarChartIcon className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{averageMetrics.accuracy.toFixed(2)}%</div>
+                    <p className="text-xs text-muted-foreground">Across all deployed models</p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+              <motion.div variants={cardVariants}>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Average F1 Score</CardTitle>
+                    <BarChartIcon className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{averageMetrics.f1.toFixed(2)}%</div>
+                    <p className="text-xs text-muted-foreground">Harmonic mean of precision and recall</p>
+                  </CardContent>
+                </Card>
+              </motion.div>
             </motion.section>
           )}
           {models.length > 0 && (
-            <motion.section 
+            <motion.section
               className="grid gap-6 lg:grid-cols-5"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -130,13 +149,13 @@ export function HomePage() {
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <RechartsBar data={recentModels.map(m => ({ name: m.name, accuracy: m.performance.accuracy * 100 }))}>
+                    <BarChart data={recentModels.map(m => ({ name: m.name, accuracy: m.performance.accuracy * 100 }))}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
                       <YAxis unit="%" />
                       <Tooltip />
                       <Bar dataKey="accuracy" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                    </RechartsBar>
+                    </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
@@ -147,13 +166,13 @@ export function HomePage() {
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <RechartsPie>
+                    <PieChart>
                       <Pie data={riskData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
                         {riskData.map((entry) => <Cell key={`cell-${entry.name}`} fill={entry.color} />)}
                       </Pie>
                       <Tooltip />
                       <Legend />
-                    </RechartsPie>
+                    </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>

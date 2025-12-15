@@ -44,6 +44,9 @@ export interface ModelMetrics {
     falseNegative: number;
   };
 }
+export interface FeatureImportance {
+  [feature: string]: number;
+}
 export interface ModelMetadata {
   id: string;
   name: string;
@@ -52,6 +55,7 @@ export interface ModelMetadata {
   features: string[];
   performance: ModelMetrics;
   encodingMap: Record<string, Record<string, number>>; // For categorical features
+  featureImportance?: FeatureImportance;
 }
 // This will store the serialized model from ml-random-forest
 export interface ModelArtifact extends ModelMetadata {
@@ -66,4 +70,12 @@ export interface PredictionResult {
   churnProbability: number;
   prediction: 0 | 1;
   featureContributions: Record<string, number>;
+}
+export interface BatchPredictRequest {
+  modelId: string;
+  customers: Record<string, any>[];
+}
+export interface PredictionBatchResult {
+  predictions: PredictionResult[];
+  total: number;
 }

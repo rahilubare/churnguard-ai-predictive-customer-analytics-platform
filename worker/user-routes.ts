@@ -2,7 +2,9 @@ import { Hono } from "hono";
 import type { Env } from './core-utils';
 import { UserEntity, ChatBoardEntity, ModelEntity } from "./entities";
 import { ok, bad, notFound, isStr } from './core-utils';
-import type { ModelArtifact } from "@shared/types";
+import type { ModelArtifact, PredictionResult } from "@shared/types";
+import { RandomForestClassifier as RFClassifier } from 'ml-random-forest';
+import { Matrix } from 'ml-matrix';
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.get('/api/test', (c) => c.json({ success: true, data: { name: 'CF Workers Demo' }}));
   // MODELS
@@ -21,8 +23,9 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       createdAt: Date.now(),
       targetVariable: body.targetVariable || 'unknown',
       features: body.features || [],
-      performance: body.performance || {},
+      performance: body.performance || { accuracy: 0, precision: 0, recall: 0, f1: 0, rocAuc: 0, confusionMatrix: { tp: 0, tn: 0, fp: 0, fn: 0 } },
       modelJson: body.modelJson,
+      encodingMap: body.encodingMap || {},
     };
     const created = await ModelEntity.create(c.env, newModel);
     return ok(c, created);
@@ -35,6 +38,50 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     }
     return ok(c, await model.getState());
   });
+  // PREDICTION
+  app.post('/api/predict', async (c) => {
+    try {
+      const { modelId, customer } = await c.req.json<{ modelId: string; customer: Record<string, any> }>();
+      if (!modelId || !customer) {
+        return bad(c, 'modelId and customer data are required');
+      }
+      const modelEntity = new ModelEntity(c.env, modelId);
+      if (!(await modelEntity.exists())) {
+        return notFound(c, 'Model not found');
+      }
+      const modelArtifact = await modelEntity.getState();
+      const classifier = RFClassifier.load(JSON.parse(modelArtifact.modelJson));
+      // Preprocess input customer data to match training
+      const inputVector = new Matrix(1, modelArtifact.features.length);
+      modelArtifact.features.forEach((feature, i) => {
+        const value = customer[feature];
+        const encoding = modelArtifact.encodingMap[feature];
+        if (encoding) { // Categorical
+          inputVector.set(0, i, encoding[String(value)] ?? 0); // Default to 0 if category not seen
+        } else { // Numerical
+          inputVector.set(0, i, typeof value === 'number' ? value : 0); // Default to 0 if missing
+        }
+      });
+      const predictionProba = classifier.predictProbability(inputVector);
+      const churnProbability = predictionProba[0][1]; // Probability of class '1'
+      const prediction = churnProbability > 0.5 ? 1 : 0;
+      // Mock feature contributions for now, as SHAP is complex
+      const featureContributions: Record<string, number> = {};
+      modelArtifact.features.forEach(f => {
+        featureContributions[f] = Math.random() * (prediction === 1 ? 1 : -1);
+      });
+      const result: PredictionResult = {
+        churnProbability,
+        prediction,
+        featureContributions,
+      };
+      return ok(c, result);
+    } catch (error) {
+      console.error("Prediction error:", error);
+      return c.json({ success: false, error: 'Prediction failed' }, 500);
+    }
+  });
+  // --- DEMO ROUTES ---
   // USERS
   app.get('/api/users', async (c) => {
     await UserEntity.ensureSeed(c.env);

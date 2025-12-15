@@ -1,25 +1,25 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import type { ModelMetrics, ModelArtifact, FeatureImportance } from '@shared/types';
+import { v4 as uuidv4 } from 'uuid';
+import type { ModelMetrics, ModelArtifact } from '@shared/types';
 import { api } from '@/lib/api-client';
-import { useAuthStore } from '@/store/auth-store';
 export type TrainingStatus = 'idle' | 'configuring' | 'preprocessing' | 'training' | 'evaluating' | 'complete' | 'error' | 'deploying';
 interface TrainingState {
   targetVariable: string | null;
-  selectedFeatures: string[];
+  selectedFeatures: Set<string>;
   status: TrainingStatus;
   progress: number;
   error: string | null;
   metrics: ModelMetrics | null;
-  featureImportance: FeatureImportance | null;
+  featureImportance: Record<string, number> | null;
   trainedModel: {
     modelJson: string;
     encodingMap: Record<string, Record<string, number>>;
   } | null;
 }
 interface TrainingActions {
-  setConfig: (target: string, features: string[]) => void;
-  startTraining: () => void;
+  setConfig: (target: string, features: Set<string>) => void;
+  startTraining: () => void; // This will be handled by the component via a worker
   setTrainingState: (
     partialState: Partial<Omit<TrainingState, 'targetVariable' | 'selectedFeatures'>>
   ) => void;
@@ -28,7 +28,7 @@ interface TrainingActions {
 }
 const initialState: TrainingState = {
   targetVariable: null,
-  selectedFeatures: [],
+  selectedFeatures: new Set(),
   status: 'idle',
   progress: 0,
   error: null,
@@ -44,6 +44,7 @@ export const useTrainingStore = create<TrainingState & TrainingActions>()(
         state.targetVariable = target;
         state.selectedFeatures = features;
         state.status = 'configuring';
+        // Reset previous training results
         state.metrics = null;
         state.featureImportance = null;
         state.trainedModel = null;
@@ -55,32 +56,23 @@ export const useTrainingStore = create<TrainingState & TrainingActions>()(
       set({ status: 'preprocessing', progress: 0, error: null });
     },
     setTrainingState: (partialState) => {
-      set((state) => {
-        Object.assign(state, partialState);
-      });
+      set(partialState);
     },
     deployModel: async (modelName: string) => {
-      const { trainedModel, targetVariable, selectedFeatures, metrics, featureImportance } = get();
-      const authStore = useAuthStore.getState();
+      const { trainedModel, targetVariable, selectedFeatures, metrics } = get();
       if (!trainedModel || !targetVariable || !metrics) {
         set({ status: 'error', error: 'No trained model to deploy.' });
-        return null;
-      }
-      if (!authStore.orgId) {
-        set({ status: 'error', error: 'Authentication error: No organization ID found.' });
         return null;
       }
       set({ status: 'deploying' });
       try {
         const modelToDeploy: Omit<ModelArtifact, 'id' | 'createdAt'> = {
           name: modelName,
-          orgId: authStore.orgId,
           targetVariable,
-          features: selectedFeatures,
+          features: Array.from(selectedFeatures),
           performance: metrics,
           modelJson: trainedModel.modelJson,
           encodingMap: trainedModel.encodingMap,
-          featureImportance: featureImportance || {},
         };
         const deployedModel = await api<ModelArtifact>('/api/models', {
           method: 'POST',

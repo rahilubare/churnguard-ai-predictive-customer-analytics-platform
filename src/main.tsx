@@ -14,6 +14,7 @@ import '@/index.css'
 import { HomePage } from '@/pages/HomePage'
 import { DataStudioPage } from '@/pages/DataStudioPage';
 import { ModelLabPage } from '@/pages/ModelLabPage';
+import { PredictionCenterPage } from '@/pages/PredictionCenterPage';
 const queryClient = new QueryClient();
 const router = createBrowserRouter([
   {
@@ -33,8 +34,7 @@ const router = createBrowserRouter([
   },
   {
     path: "/predict",
-    // Placeholder for now, can redirect or show a coming soon page
-    element: <HomePage />,
+    element: <PredictionCenterPage />,
     errorElement: <RouteErrorBoundary />,
   },
 ]);

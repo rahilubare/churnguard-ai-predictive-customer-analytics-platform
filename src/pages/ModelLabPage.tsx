@@ -32,7 +32,7 @@ export function ModelLabPage() {
   const startTraining = useTrainingStore(s => s.startTraining);
   const setTrainingState = useTrainingStore(s => s.setTrainingState);
   const deployModel = useTrainingStore(s => s.deployModel);
-  const [localTarget, setLocalTarget] = useState<string | undefined>(targetVariable || undefined);
+  const [localTarget, setLocalTarget] = useState<string>(targetVariable ?? '');
   const [localFeatures, setLocalFeatures] = useState<string[]>(selectedFeatures);
   const [modelName, setModelName] = useState("");
   const [isDeployDialogOpen, setDeployDialogOpen] = useState(false);

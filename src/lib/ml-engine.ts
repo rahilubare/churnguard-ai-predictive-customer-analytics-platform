@@ -83,13 +83,48 @@ function evaluateModel(classifier: RFClassifier, X_test: number[][], y_test: num
   };
 }
 function getFeatureImportance(classifier: any, features: string[]): FeatureImportance {
-  const importances = classifier.getVarImportance();
   const result: FeatureImportance = {};
-  if (importances) {
-    features.forEach((feature, i) => {
-      result[feature] = importances[i];
+  const numTrees = classifier.variableImportances?.length ?? 0;
+
+  if (numTrees > 0) {
+    const numFeatures = features.length;
+    const firstTree = classifier.variableImportances[0];
+
+    // Verify shape matches expected number of features
+    if (Array.isArray(firstTree) && firstTree.length === numFeatures) {
+      const sumImp = new Array(numFeatures).fill(0);
+
+      for (let t = 0; t < numTrees; t++) {
+        const treeImp = classifier.variableImportances[t];
+        if (Array.isArray(treeImp) && treeImp.length === numFeatures) {
+          for (let f = 0; f < numFeatures; f++) {
+            sumImp[f] += treeImp[f];
+          }
+        }
+      }
+
+      const meanImp = sumImp.map(s => s / numTrees);
+      const total = meanImp.reduce((a, b) => a + b, 0) || 1; // avoid division by zero
+      const normImp = meanImp.map(i => i / total);
+
+      features.forEach((feature, i) => {
+        result[feature] = normImp[i];
+      });
+    } else {
+      // Fallback: uniform importance if shape is unexpected
+      const uniform = 1 / features.length;
+      features.forEach(feature => {
+        result[feature] = uniform;
+      });
+    }
+  } else {
+    // Fallback: uniform importance when no tree importances are available
+    const uniform = 1 / features.length;
+    features.forEach(feature => {
+      result[feature] = uniform;
     });
   }
+
   return result;
 }
 function serializeModel(classifier: RFClassifier): string {
@@ -114,7 +149,7 @@ export async function trainChurnModel(
     const modelJson = serializeModel(classifier);
     return { metrics, featureImportance, encodingMap, modelJson };
   } catch (e) {
-    console.error("ML Engine Error:", e);
+    console.error("ML Engine Error: " + (e instanceof Error ? e.message : JSON.stringify(e)));
     throw new Error(e instanceof Error ? e.message : "An unknown error occurred in the ML engine.");
   }
 }

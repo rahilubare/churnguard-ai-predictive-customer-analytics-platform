@@ -42,7 +42,20 @@ export class ModelEntity extends IndexedEntity<ModelArtifact> {
     createdAt: 0,
     targetVariable: "",
     features: [],
-    performance: {},
+    performance: {
+      accuracy: 0,
+      precision: 0,
+      recall: 0,
+      f1: 0,
+      rocAuc: 0,
+      confusionMatrix: {
+        truePositive: 0,
+        trueNegative: 0,
+        falsePositive: 0,
+        falseNegative: 0,
+      },
+    },
+    encodingMap: {},
     modelJson: "{}",
   };
 }

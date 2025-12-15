@@ -1,12 +1,11 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import { v4 as uuidv4 } from 'uuid';
 import type { ModelMetrics, ModelArtifact } from '@shared/types';
 import { api } from '@/lib/api-client';
 export type TrainingStatus = 'idle' | 'configuring' | 'preprocessing' | 'training' | 'evaluating' | 'complete' | 'error' | 'deploying';
 interface TrainingState {
   targetVariable: string | null;
-  selectedFeatures: Set<string>;
+  selectedFeatures: string[];
   status: TrainingStatus;
   progress: number;
   error: string | null;
@@ -18,8 +17,8 @@ interface TrainingState {
   } | null;
 }
 interface TrainingActions {
-  setConfig: (target: string, features: Set<string>) => void;
-  startTraining: () => void; // This will be handled by the component via a worker
+  setConfig: (target: string, features: string[]) => void;
+  startTraining: () => void;
   setTrainingState: (
     partialState: Partial<Omit<TrainingState, 'targetVariable' | 'selectedFeatures'>>
   ) => void;
@@ -28,7 +27,7 @@ interface TrainingActions {
 }
 const initialState: TrainingState = {
   targetVariable: null,
-  selectedFeatures: new Set(),
+  selectedFeatures: [],
   status: 'idle',
   progress: 0,
   error: null,
@@ -44,7 +43,6 @@ export const useTrainingStore = create<TrainingState & TrainingActions>()(
         state.targetVariable = target;
         state.selectedFeatures = features;
         state.status = 'configuring';
-        // Reset previous training results
         state.metrics = null;
         state.featureImportance = null;
         state.trainedModel = null;
@@ -69,7 +67,7 @@ export const useTrainingStore = create<TrainingState & TrainingActions>()(
         const modelToDeploy: Omit<ModelArtifact, 'id' | 'createdAt'> = {
           name: modelName,
           targetVariable,
-          features: Array.from(selectedFeatures),
+          features: selectedFeatures,
           performance: metrics,
           modelJson: trainedModel.modelJson,
           encodingMap: trainedModel.encodingMap,

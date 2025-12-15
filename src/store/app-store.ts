@@ -60,13 +60,13 @@ export const useAppStore = create<AppState & AppActions>()(
         } else if (typeof error === 'object' && error !== null) {
           try {
             // Attempt to stringify the error object
-            errorMsg = JSON.stringify(error) ?? 'Parse failed';
+            errorMsg = JSON.stringify(error) || 'Parse failed';
           } catch {
             errorMsg = 'Parse failed';
           }
         } else {
           // Fallback for primitive error values
-          errorMsg = String(error) ?? 'Parse failed';
+          errorMsg = String(error) || 'Parse failed';
         }
         console.error(`File processing error: ${errorMsg}`);
         // Reset state and store the derived error message; no parse errors are available here

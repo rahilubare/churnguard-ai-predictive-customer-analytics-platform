@@ -30,7 +30,7 @@ export function DataStudioPage() {
   const rawFile = useAppStore(s => s.rawFile);
   const parseErrors = useAppStore(s => s.parseErrors);
   // Flag for minor parsing warnings (e.g., extra fields)
-  const hasWarnings = !!parseErrors?.length > 0;
+  const hasWarnings = parseErrors?.length > 0;
   const [delimiter, setDelimiter] = useState<string | undefined>(undefined);
   const handleProcess = async (manualDelimiter?: string) => {
     await processFile(manualDelimiter);
@@ -105,7 +105,7 @@ export function DataStudioPage() {
           {dataset && datasetStats && (
             <>
               {hasWarnings && (
-                <Alert variant="warning">
+                <Alert variant="default">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>Parsing Warnings</AlertTitle>
                   <AlertDescription>

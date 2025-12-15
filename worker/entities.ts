@@ -32,14 +32,12 @@ export class SessionEntity extends IndexedEntity<SessionState> {
   static readonly entityName = "session";
   static readonly indexName = "sessions";
   static readonly initialState: SessionState = {
+    id: "", // Required for IndexedEntity
     userId: "",
     orgId: "",
     exp: 0,
   };
-  // Use session token as the ID
-  static override keyOf(state: SessionState & { id: string }): string {
-    return state.id;
-  }
+  // The default keyOf(state) => state.id now works correctly.
 }
 // MODEL ENTITY: Stores trained model artifacts
 export class ModelEntity extends IndexedEntity<ModelArtifact> {

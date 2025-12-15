@@ -20,6 +20,7 @@ export interface OrgState {
   maxRows: number;
 }
 export interface SessionState {
+  id: string; // Required for IndexedEntity
   userId: string;
   orgId: string;
   exp: number; // Expiration timestamp

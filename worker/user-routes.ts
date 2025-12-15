@@ -22,7 +22,7 @@ async function verifyAuth(c: Context<{ Bindings: Env }>): Promise<{ userId: stri
     if (!(await session.exists())) return null;
     const state = await session.getState();
     if (Date.now() > state.exp) {
-      await session.delete();
+      await SessionEntity.delete(c.env, token);
       return null;
     }
     return { userId: state.userId, orgId: state.orgId };
@@ -143,9 +143,9 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       const modelArtifact = await modelEntity.getState();
       if (modelArtifact.orgId !== authContext.orgId) return c.json({ success: false, error: 'Forbidden' }, 403);
       const modelData = JSON.parse(modelArtifact.modelJson);
-      const classifier = RFClassifier.load(modelData);
+      const classifier = RFClassifier.load(modelData, 42);
       const inputVector = [preprocessCustomer(customer, modelArtifact)];
-      const inputMatrix = new Matrix(inputVector);
+      const inputMatrix = new Matrix(inputVector as any[]);
       const predictionProbaMatrix = classifier.predictProbability(inputMatrix);
       const probaMatrix: number[][] = Array.isArray(predictionProbaMatrix) ? predictionProbaMatrix : (predictionProbaMatrix as any).to2DArray();
       const churnProbability = probaMatrix[0]?.[1] || 0;
@@ -169,16 +169,20 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     try {
       const { modelId, customers } = await c.req.json<BatchPredictRequest>();
       if (!modelId || !customers || !Array.isArray(customers)) return bad(c, 'modelId and a customer array are required');
-      if (customers.length > 1000) return bad(c, 'Batch size cannot exceed 1000 customers.');
+      const orgEntity = new OrgEntity(c.env, authContext.orgId);
+      const orgState = await orgEntity.getState();
+      if (customers.length > orgState.maxRows) {
+        return bad(c, `Batch size of ${customers.length} exceeds your plan's quota of ${orgState.maxRows} rows. Please upgrade or reduce the batch size.`);
+      }
       const modelEntity = new ModelEntity(c.env, modelId);
       if (!(await modelEntity.exists())) return notFound(c, 'Model not found');
       const modelArtifact = await modelEntity.getState();
       if (modelArtifact.orgId !== authContext.orgId) return c.json({ success: false, error: 'Forbidden' }, 403);
       const modelData = JSON.parse(modelArtifact.modelJson);
-      const classifier = RFClassifier.load(modelData);
+      const classifier = RFClassifier.load(modelData, 42);
       const predictions: PredictionResult[] = customers.map(customer => {
         const inputVector = [preprocessCustomer(customer, modelArtifact)];
-        const inputMatrix = new Matrix(inputVector);
+        const inputMatrix = new Matrix(inputVector as any[]);
         const predictionProbaMatrix = classifier.predictProbability(inputMatrix);
         const probaMatrix: number[][] = Array.isArray(predictionProbaMatrix) ? predictionProbaMatrix : (predictionProbaMatrix as any).to2DArray();
         const churnProbability = probaMatrix[0]?.[1] || 0;

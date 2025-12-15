@@ -2,7 +2,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppStore } from "@/store/app-store";
-import { ArrowRight, BrainCircuit, Database, FlaskConical, Upload, BarChart as BarChartIcon, PieChart as PieChartIcon, AlertCircle } from "lucide-react";
+import { ArrowRight, BrainCircuit, Database, FlaskConical, Upload, BarChart as BarChartIcon, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/api-client";
@@ -47,15 +47,19 @@ export function HomePage() {
       return acc;
     }, { accuracy: 0, f1: 0, rocAuc: 0 });
     const clamp = (val: number) => Math.max(0, Math.min(100, val));
+    const safeAvg = (val: number) => {
+        const avg = (val / models.length) * 100;
+        return isNaN(avg) ? 0 : clamp(avg);
+    }
     return {
-      accuracy: clamp((total.accuracy / models.length) * 100),
-      f1: clamp((total.f1 / models.length) * 100),
-      rocAuc: clamp((total.rocAuc / models.length) * 100),
+      accuracy: safeAvg(total.accuracy),
+      f1: safeAvg(total.f1),
+      rocAuc: safeAvg(total.rocAuc),
     };
   }, [models]);
   return (
-    <AppLayout container>
-      <div className="py-8 md:py-10 lg:py-12">
+    <AppLayout>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-10 lg:py-12">
         <div className="space-y-12">
           <motion.section
             className="text-center"
@@ -72,9 +76,9 @@ export function HomePage() {
           </motion.section>
           {isLoading ? (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              <Skeleton className="h-48" />
-              <Skeleton className="h-48" />
-              <Skeleton className="h-48" />
+              <Skeleton className="h-32 rounded-lg" />
+              <Skeleton className="h-32 rounded-lg" />
+              <Skeleton className="h-32 rounded-lg" />
             </div>
           ) : models.length === 0 ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
@@ -117,7 +121,7 @@ export function HomePage() {
                     <BarChartIcon className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{isNaN(averageMetrics.accuracy) ? '0.00' : averageMetrics.accuracy.toFixed(2)}%</div>
+                    <div className="text-2xl font-bold">{averageMetrics.accuracy.toFixed(1)}%</div>
                     <p className="text-xs text-muted-foreground">Across all deployed models</p>
                   </CardContent>
                 </Card>
@@ -129,7 +133,7 @@ export function HomePage() {
                     <BarChartIcon className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{isNaN(averageMetrics.f1) ? '0.00' : averageMetrics.f1.toFixed(2)}%</div>
+                    <div className="text-2xl font-bold">{averageMetrics.f1.toFixed(1)}%</div>
                     <p className="text-xs text-muted-foreground">Harmonic mean of precision and recall</p>
                   </CardContent>
                 </Card>
@@ -211,7 +215,7 @@ export function HomePage() {
               </CardContent>
             </Card>
           </motion.section>
-          <footer className="text-center text-muted-foreground/80">
+          <footer className="text-center text-sm text-muted-foreground/80 pt-8">
             <p>Built with ❤️ at Cloudflare</p>
           </footer>
         </div>

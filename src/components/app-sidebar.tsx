@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, Database, FlaskConical, BrainCircuit, Settings, LifeBuoy, LogOut } from "lucide-react";
+import { LayoutDashboard, Database, FlaskConical, BrainCircuit, Settings, LifeBuoy, LogOut, ExternalLink } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -14,6 +14,18 @@ import { ThemeToggle } from "./ThemeToggle";
 import { useAuthStore } from "@/store/auth-store";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "./ui/button";
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/data", label: "Data Studio", icon: Database },
@@ -37,7 +49,12 @@ export function AppSidebar(): JSX.Element {
         {org && (
           <div className="flex flex-col gap-1.5 px-2 pt-2 border-t mt-2">
             <div className="text-sm font-semibold text-foreground truncate">{org.name}</div>
-            <Badge variant="secondary" className="w-fit text-xs">{org.subTier.toUpperCase()}</Badge>
+            <Badge variant="secondary" className={`w-fit text-xs ${org.subTier === 'free' ? 'animate-pulse' : ''}`}>{org.subTier.toUpperCase()}</Badge>
+            {org.subTier === 'free' && (
+                <Button variant="link" size="sm" className="h-auto p-0 justify-start text-xs text-primary">
+                    Upgrade Plan <ExternalLink className="ml-1 h-3 w-3" />
+                </Button>
+            )}
           </div>
         )}
       </SidebarHeader>
@@ -66,11 +83,23 @@ export function AppSidebar(): JSX.Element {
                 <a href="#"><LifeBuoy className="h-5 w-5" /> <span>Support</span></a>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton onClick={logout}>
-                <LogOut className="h-5 w-5" /> <span>Logout</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <SidebarMenuButton><LogOut className="h-5 w-5" /> <span>Logout</span></SidebarMenuButton>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure you want to log out?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    You will be returned to the login page and your current session will be terminated.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={logout}>Log Out</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
         </SidebarMenu>
         <div className="flex items-center justify-between px-2">
             {user && (

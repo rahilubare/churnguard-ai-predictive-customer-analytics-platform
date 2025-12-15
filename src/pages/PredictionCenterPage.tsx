@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api-client";
 import type { ModelArtifact, PredictionResult, PredictionBatchResult } from "@shared/types";
-import { Loader2, BrainCircuit, BarChartHorizontal } from "lucide-react";
+import { Loader2, BrainCircuit, BarChartHorizontal, AlertCircle } from "lucide-react";
 import { Toaster, toast } from "@/components/ui/sonner";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -108,9 +108,20 @@ export function PredictionCenterPage() {
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => Math.abs(a.value) - Math.abs(b.value))
     : [];
+  const batchSummary = useMemo(() => {
+    if (!batchResults) return null;
+    const churnCount = batchResults.filter(r => r.prediction === 1).length;
+    const total = batchResults.length;
+    return {
+      churnCount,
+      noChurnCount: total - churnCount,
+      churnRate: total > 0 ? (churnCount / total) * 100 : 0,
+      total,
+    };
+  }, [batchResults]);
   return (
-    <AppLayout container>
-      <div className="py-8 md:py-10 lg:py-12">
+    <AppLayout>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-10 lg:py-12">
         <div className="space-y-8 animate-fade-in">
           <header className="space-y-2">
             <h1 className="text-4xl font-bold tracking-tight">Prediction Center</h1>
@@ -193,30 +204,51 @@ export function PredictionCenterPage() {
                     <Button onClick={handleBatchProcess} disabled={!batchFile || isBatchProcessing}>{isBatchProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : 'Process Batch File'}</Button>
                     {isBatchProcessing && (
                       <div className="space-y-2 mt-4">
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
+                        <Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" />
                       </div>
                     )}
-                    {batchResults && (
-                      <motion.div className="mt-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                        <h3 className="font-semibold mb-2">Batch Results</h3>
-                        <ScrollArea className="h-[400px] border rounded-md">
-                          <Table>
-                            <TableHeader><TableRow><TableHead>Customer #</TableHead><TableHead>Churn Probability</TableHead><TableHead>Prediction</TableHead></TableRow></TableHeader>
-                            <TableBody>
-                              {batchResults.map((res, i) => (
-                                <TableRow key={i}>
-                                  <TableCell>{i + 1}</TableCell>
-                                  <TableCell>{(res.churnProbability * 100).toFixed(2)}%</TableCell>
-                                  <TableCell><Badge variant={res.prediction === 1 ? 'destructive' : 'default'} className={res.prediction === 0 ? "bg-emerald-500" : ""}>{res.prediction === 1 ? 'Churn' : 'No Churn'}</Badge></TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </ScrollArea>
+                    {batchResults && batchSummary && (
+                      <motion.div className="mt-6 grid gap-6 lg:grid-cols-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                        <Card>
+                          <CardHeader><CardTitle>Batch Summary</CardTitle></CardHeader>
+                          <CardContent>
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie data={[{name: 'Churn', value: batchSummary.churnCount}, {name: 'No Churn', value: batchSummary.noChurnCount}]} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                                    <Cell fill="hsl(var(--destructive))" /><Cell fill="#10B981" />
+                                  </Pie>
+                                  <Tooltip />
+                                  <Legend />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                            <Alert className="mt-4">
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertTitle>High-Risk Customers Identified</AlertTitle>
+                              <AlertDescription>{batchSummary.churnCount} out of {batchSummary.total} customers are predicted to churn ({batchSummary.churnRate.toFixed(1)}%).</AlertDescription>
+                            </Alert>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardHeader><CardTitle>Detailed Results</CardTitle></CardHeader>
+                          <CardContent>
+                            <ScrollArea className="h-[400px] border rounded-md">
+                              <Table>
+                                <TableHeader><TableRow><TableHead>Customer #</TableHead><TableHead>Churn Probability</TableHead><TableHead>Prediction</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                  {batchResults.map((res, i) => (
+                                    <TableRow key={i}>
+                                      <TableCell>{i + 1}</TableCell>
+                                      <TableCell>{(res.churnProbability * 100).toFixed(2)}%</TableCell>
+                                      <TableCell><Badge variant={res.prediction === 1 ? 'destructive' : 'default'} className={res.prediction === 0 ? "bg-emerald-500" : ""}>{res.prediction === 1 ? 'Churn' : 'No Churn'}</Badge></TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </ScrollArea>
+                          </CardContent>
+                        </Card>
                       </motion.div>
                     )}
                   </CardContent>

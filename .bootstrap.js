@@ -77,19 +77,7 @@ function updateWranglerJsonc() {
 }
 
 function runSetupCommands() {
-    const commands = [
-    "bun add papaparse@^5.4.1",
-    "bun add ml-matrix@^6.10.0",
-    "bun add ml-random-forest@^2.1.0",
-    "bun install papaparse @types/papaparse",
-    "bun install react-dropzone",
-    "bun install @radix-ui/react-icons",
-    "bun add @types/react-dropzone",
-    "bun install ml-random-forest@latest ml-matrix@latest  # Ensure latest compat, remove any ml-cart if present via bun remove ml-cart",
-    "bun add @types/papaparse react-dropzone @radix-ui/react-icons @types/react-dropzone",
-    "bun add xlsx",
-    "bun add @types/xlsx"
-];
+    const commands = [];
     
     if (commands.length === 0) {
         console.log('⊘ No setup commands to run');

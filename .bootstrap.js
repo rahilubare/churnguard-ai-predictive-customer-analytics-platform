@@ -86,7 +86,8 @@ function runSetupCommands() {
     "bun install @radix-ui/react-icons",
     "bun add @types/react-dropzone",
     "bun install ml-random-forest@latest ml-matrix@latest  # Ensure latest compat, remove any ml-cart if present via bun remove ml-cart",
-    "bun add @types/papaparse react-dropzone @radix-ui/react-icons @types/react-dropzone"
+    "bun add @types/papaparse react-dropzone @radix-ui/react-icons @types/react-dropzone",
+    "bun add xlsx"
 ];
     
     if (commands.length === 0) {

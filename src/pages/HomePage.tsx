@@ -46,10 +46,11 @@ export function HomePage() {
       acc.rocAuc += m.performance.rocAuc;
       return acc;
     }, { accuracy: 0, f1: 0, rocAuc: 0 });
+    const clamp = (val: number) => Math.max(0, Math.min(100, val));
     return {
-      accuracy: (total.accuracy / models.length) * 100,
-      f1: (total.f1 / models.length) * 100,
-      rocAuc: (total.rocAuc / models.length) * 100,
+      accuracy: clamp((total.accuracy / models.length) * 100),
+      f1: clamp((total.f1 / models.length) * 100),
+      rocAuc: clamp((total.rocAuc / models.length) * 100),
     };
   }, [models]);
   return (
@@ -116,7 +117,7 @@ export function HomePage() {
                     <BarChartIcon className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{averageMetrics.accuracy.toFixed(2)}%</div>
+                    <div className="text-2xl font-bold">{isNaN(averageMetrics.accuracy) ? '0.00' : averageMetrics.accuracy.toFixed(2)}%</div>
                     <p className="text-xs text-muted-foreground">Across all deployed models</p>
                   </CardContent>
                 </Card>
@@ -128,7 +129,7 @@ export function HomePage() {
                     <BarChartIcon className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{averageMetrics.f1.toFixed(2)}%</div>
+                    <div className="text-2xl font-bold">{isNaN(averageMetrics.f1) ? '0.00' : averageMetrics.f1.toFixed(2)}%</div>
                     <p className="text-xs text-muted-foreground">Harmonic mean of precision and recall</p>
                   </CardContent>
                 </Card>

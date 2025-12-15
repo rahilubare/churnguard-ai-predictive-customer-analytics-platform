@@ -191,6 +191,15 @@ export function PredictionCenterPage() {
                   <CardContent className="space-y-4">
                     <div className="mx-auto max-w-md"><FileUpload onFileSelect={setBatchFile} /></div>
                     <Button onClick={handleBatchProcess} disabled={!batchFile || isBatchProcessing}>{isBatchProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : 'Process Batch File'}</Button>
+                    {isBatchProcessing && (
+                      <div className="space-y-2 mt-4">
+                        <Skeleton className="h-8 w-full" />
+                        <Skeleton className="h-8 w-full" />
+                        <Skeleton className="h-8 w-full" />
+                        <Skeleton className="h-8 w-full" />
+                        <Skeleton className="h-8 w-full" />
+                      </div>
+                    )}
                     {batchResults && (
                       <motion.div className="mt-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                         <h3 className="font-semibold mb-2">Batch Results</h3>

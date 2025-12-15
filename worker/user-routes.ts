@@ -11,7 +11,9 @@ function preprocessCustomer(customer: Record<string, any>, modelArtifact: ModelA
     if (encoding) {
       return encoding[String(value)] ?? 0; // Default to 0 for unseen categories
     }
-    return typeof value === 'number' ? value : 0; // Default to 0 for missing numerical
+    // Attempt to convert to number, default to 0 if not a valid number
+    const numValue = Number(value);
+    return !isNaN(numValue) ? numValue : 0;
   });
 }
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
@@ -57,10 +59,11 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       if (!(await modelEntity.exists())) return notFound(c, 'Model not found');
       const modelArtifact = await modelEntity.getState();
       const modelData = JSON.parse(modelArtifact.modelJson);
-      const classifier = RFClassifier.load(modelData);
+      const classifier = RFClassifier.load(modelData, { seed: 42 });
       const inputVector = [preprocessCustomer(customer, modelArtifact)];
       const predictionProbaMatrix = classifier.predictProbability(inputVector);
-      const churnProbability = predictionProbaMatrix[0][1] || 0;
+      const probaMatrix: number[][] = Array.isArray(predictionProbaMatrix) ? predictionProbaMatrix : (predictionProbaMatrix as any).to2DArray();
+      const churnProbability = probaMatrix[0]?.[1] || 0;
       const prediction = churnProbability > 0.5 ? 1 : 0;
       const featureContributions: Record<string, number> = {};
       modelArtifact.features.forEach((f, i) => {
@@ -85,11 +88,12 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       if (!(await modelEntity.exists())) return notFound(c, 'Model not found');
       const modelArtifact = await modelEntity.getState();
       const modelData = JSON.parse(modelArtifact.modelJson);
-      const classifier = RFClassifier.load(modelData);
+      const classifier = RFClassifier.load(modelData, { seed: 42 });
       const predictions: PredictionResult[] = customers.map(customer => {
         const inputVector = [preprocessCustomer(customer, modelArtifact)];
         const predictionProbaMatrix = classifier.predictProbability(inputVector);
-        const churnProbability = predictionProbaMatrix[0][1] || 0;
+        const probaMatrix: number[][] = Array.isArray(predictionProbaMatrix) ? predictionProbaMatrix : (predictionProbaMatrix as any).to2DArray();
+        const churnProbability = probaMatrix[0]?.[1] || 0;
         const prediction = churnProbability > 0.5 ? 1 : 0;
         const featureContributions: Record<string, number> = {};
         modelArtifact.features.forEach((f, i) => {

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api-client";
 import type { ModelArtifact, PredictionResult, PredictionBatchResult } from "@shared/types";
-import { Loader2, BrainCircuit, BarChartHorizontal, AlertCircle } from "lucide-react";
+import { Loader2, BrainCircuit, BarChartHorizontal, AlertCircle, ArrowRight } from "lucide-react";
 import { Toaster, toast } from "@/components/ui/sonner";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +19,7 @@ import { FileUpload } from "@/components/ui/file-upload";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parseCsv } from "@/lib/data-processor";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 export function PredictionCenterPage() {
   const [models, setModels] = useState<ModelArtifact[]>([]);
   const [selectedModel, setSelectedModel] = useState<ModelArtifact | null>(null);
@@ -102,7 +103,7 @@ export function PredictionCenterPage() {
       setIsBatchProcessing(false);
     }
   };
-  const churnProbabilityPercent = prediction ? (prediction.churnProbability * 100).toFixed(2) : 0;
+  const churnProbabilityPercent = prediction ? (prediction.churnProbability * 100) : 0;
   const featureContributionData = prediction
     ? Object.entries(prediction.featureContributions)
         .map(([name, value]) => ({ name, value }))
@@ -119,15 +120,20 @@ export function PredictionCenterPage() {
       total,
     };
   }, [batchResults]);
+  const getRiskBadge = (prob: number) => {
+    if (prob > 0.75) return <Badge variant="destructive">High Risk</Badge>;
+    if (prob > 0.5) return <Badge variant="secondary" className="bg-orange-500 text-white">Medium Risk</Badge>;
+    return <Badge className="bg-emerald-500 text-white">Low Risk</Badge>;
+  };
   return (
     <AppLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-10 lg:py-12">
         <div className="space-y-8 animate-fade-in">
           <header className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight">Prediction Center</h1>
-            <p className="text-lg text-muted-foreground">Use your deployed models to predict customer churn in real-time.</p>
+            <h1 className="text-4xl font-bold tracking-tight">Score Customers</h1>
+            <p className="text-lg text-muted-foreground">Run single or batch predictions and perform risk analysis.</p>
           </header>
-          <Card>
+          <Card className="hover:shadow-lg transition-shadow duration-200">
             <CardHeader><CardTitle>1. Select a Deployed Model</CardTitle></CardHeader>
             <CardContent>
               {isLoadingModels ? <Skeleton className="h-10 w-full" /> : models.length > 0 ? (
@@ -153,7 +159,7 @@ export function PredictionCenterPage() {
               <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="single">Single Prediction</TabsTrigger><TabsTrigger value="batch">Batch Prediction</TabsTrigger></TabsList>
               <TabsContent value="single">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
-                  <Card>
+                  <Card className="hover:shadow-lg transition-shadow duration-200">
                     <CardHeader><CardTitle>2. Enter Customer Data</CardTitle><CardDescription>Fill in the features for the customer you want to score.</CardDescription></CardHeader>
                     <CardContent className="space-y-4">
                       <ScrollArea className="h-[400px] pr-4">
@@ -166,15 +172,15 @@ export function PredictionCenterPage() {
                       <Button onClick={handlePredict} disabled={isPredicting} className="w-full">{isPredicting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Predicting...</> : 'Predict Churn'}</Button>
                     </CardContent>
                   </Card>
-                  <Card>
+                  <Card className="hover:shadow-lg transition-shadow duration-200">
                     <CardHeader><CardTitle>3. Prediction Result</CardTitle><CardDescription>The model's prediction and feature insights.</CardDescription></CardHeader>
                     <CardContent className="flex flex-col items-center justify-center min-h-[500px] space-y-4">
                       {isPredicting ? <Loader2 className="h-12 w-12 animate-spin text-primary" /> : prediction ? (
                         <motion.div className="w-full space-y-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                           <div className="text-center">
                             <p className="text-muted-foreground">Churn Probability</p>
-                            <p className={`text-6xl font-bold ${prediction.prediction === 1 ? 'text-destructive' : 'text-emerald-500'}`}>{churnProbabilityPercent}%</p>
-                            <Badge variant={prediction.prediction === 1 ? 'destructive' : 'default'} className={prediction.prediction === 0 ? "bg-emerald-500" : ""}>{prediction.prediction === 1 ? 'Likely to Churn' : 'Unlikely to Churn'}</Badge>
+                            <p className={cn("text-6xl font-bold", churnProbabilityPercent > 75 ? 'text-destructive' : churnProbabilityPercent > 50 ? 'text-orange-500' : 'text-emerald-500')}>{churnProbabilityPercent.toFixed(1)}%</p>
+                            {getRiskBadge(prediction.churnProbability)}
                           </div>
                           <div>
                             <h4 className="font-semibold mb-2 text-center">Feature Contributions</h4>
@@ -197,7 +203,7 @@ export function PredictionCenterPage() {
                 </div>
               </TabsContent>
               <TabsContent value="batch">
-                <Card className="mt-6">
+                <Card className="mt-6 hover:shadow-lg transition-shadow duration-200">
                   <CardHeader><CardTitle>Batch Prediction</CardTitle><CardDescription>Upload a CSV of customers to predict churn in bulk.</CardDescription></CardHeader>
                   <CardContent className="space-y-4">
                     <div className="mx-auto max-w-md"><FileUpload onFileSelect={setBatchFile} /></div>
@@ -216,14 +222,14 @@ export function PredictionCenterPage() {
                               <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                   <Pie data={[{name: 'Churn', value: batchSummary.churnCount}, {name: 'No Churn', value: batchSummary.noChurnCount}]} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                                    <Cell fill="hsl(var(--destructive))" /><Cell fill="#10B981" />
+                                    <Cell fill="#F43F5E" /><Cell fill="#10B981" />
                                   </Pie>
                                   <Tooltip />
                                   <Legend />
                                 </PieChart>
                               </ResponsiveContainer>
                             </div>
-                            <Alert className="mt-4">
+                            <Alert variant="destructive" className="mt-4">
                               <AlertCircle className="h-4 w-4" />
                               <AlertTitle>High-Risk Customers Identified</AlertTitle>
                               <AlertDescription>{batchSummary.churnCount} out of {batchSummary.total} customers are predicted to churn ({batchSummary.churnRate.toFixed(1)}%).</AlertDescription>
@@ -234,21 +240,26 @@ export function PredictionCenterPage() {
                           <CardHeader><CardTitle>Detailed Results</CardTitle></CardHeader>
                           <CardContent>
                             <ScrollArea className="h-[400px] border rounded-md">
-                              <Table>
-                                <TableHeader><TableRow><TableHead>Customer #</TableHead><TableHead>Churn Probability</TableHead><TableHead>Prediction</TableHead></TableRow></TableHeader>
-                                <TableBody>
-                                  {batchResults.map((res, i) => (
-                                    <TableRow key={i}>
-                                      <TableCell>{i + 1}</TableCell>
-                                      <TableCell>{(res.churnProbability * 100).toFixed(2)}%</TableCell>
-                                      <TableCell><Badge variant={res.prediction === 1 ? 'destructive' : 'default'} className={res.prediction === 0 ? "bg-emerald-500" : ""}>{res.prediction === 1 ? 'Churn' : 'No Churn'}</Badge></TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
+                              <div className="overflow-x-auto">
+                                <Table>
+                                  <TableHeader><TableRow><TableHead>Customer #</TableHead><TableHead>Churn Probability</TableHead><TableHead>Risk Level</TableHead></TableRow></TableHeader>
+                                  <TableBody>
+                                    {batchResults.map((res, i) => (
+                                      <TableRow key={i} className="hover:bg-accent">
+                                        <TableCell>{i + 1}</TableCell>
+                                        <TableCell>{(res.churnProbability * 100).toFixed(1)}%</TableCell>
+                                        <TableCell>{getRiskBadge(res.churnProbability)}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
                             </ScrollArea>
                           </CardContent>
                         </Card>
+                        <div className="lg:col-span-2 flex justify-end">
+                            <Button className="hover:shadow-glow hover:scale-105 transition-all">View Insights <ArrowRight className="ml-2 h-4 w-4" /></Button>
+                        </div>
                       </motion.div>
                     )}
                   </CardContent>

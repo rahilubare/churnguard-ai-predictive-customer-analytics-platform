@@ -4,6 +4,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar";
 import { useAuthStore } from "@/store/auth-store";
 import { Loader2 } from "lucide-react";
+import { StatusBar } from "../ui/status-bar";
 type AppLayoutProps = {
   children: React.ReactNode;
   container?: boolean;
@@ -29,11 +30,6 @@ export function AppLayout({ children, container = false, className, contentClass
     );
   }
   if (!isAuthenticated) {
-    // The AuthPage is a standalone page, so we don't need the full layout.
-    // We navigate there from the AuthGuard component.
-    // This logic is now simplified as the guard handles the redirect.
-    // We still need a wrapper for the router context to be available.
-    // The AuthGuard will handle the redirect.
     return <AuthGuard><div/></AuthGuard>;
   }
   return (
@@ -44,11 +40,17 @@ export function AppLayout({ children, container = false, className, contentClass
           <div className="absolute left-2 top-2 z-20">
             <SidebarTrigger />
           </div>
-          {container ? (
-            <div className={"max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" + (contentClassName ? ` ${contentClassName}` : "")}>{children}</div>
-          ) : (
-            children
-          )}
+          <StatusBar className="sticky top-2 z-10 mx-2 sm:mx-4" />
+          <main className="flex-1">
+            {container ? (
+              <div className={"max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" + (contentClassName ? ` ${contentClassName}` : "")}>{children}</div>
+            ) : (
+              children
+            )}
+          </main>
+          <footer className="border-t mt-auto pt-6 pb-8 text-center text-sm text-muted-foreground/80">
+            Built with ❤️ at ToorInfotech
+          </footer>
         </SidebarInset>
       </SidebarProvider>
     </AuthGuard>

@@ -29,7 +29,6 @@ export function DataStudioPage() {
   const error = useAppStore(s => s.error);
   const rawFile = useAppStore(s => s.rawFile);
   const parseErrors = useAppStore(s => s.parseErrors);
-  // Flag for minor parsing warnings (e.g., extra fields)
   const hasWarnings = parseErrors?.length > 0;
   const [delimiter, setDelimiter] = useState<string | undefined>(undefined);
   const handleProcess = async (manualDelimiter?: string) => {
@@ -42,9 +41,9 @@ export function DataStudioPage() {
       <div className="py-8 md:py-10 lg:py-12">
         <div className="space-y-8 animate-fade-in">
           <header className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight">Data Studio</h1>
+            <h1 className="text-4xl font-bold tracking-tight">Manage Datasets & Quality</h1>
             <p className="text-lg text-muted-foreground">
-              Upload, inspect, and prepare your customer data for model training.
+              Upload, validate schema, and preview your customer data before training.
             </p>
           </header>
           {error && (
@@ -80,7 +79,7 @@ export function DataStudioPage() {
               </CardContent>
             </Card>
           )}
-          <Card>
+          <Card className="hover:shadow-lg transition-shadow duration-200">
             <CardHeader>
               <CardTitle>1. Upload Dataset</CardTitle>
               <CardDescription>
@@ -109,12 +108,12 @@ export function DataStudioPage() {
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>Parsing Warnings</AlertTitle>
                   <AlertDescription>
-                    {parseErrors!.length} minor parsing issues detected (extra fields). Data parsed successfully - proceed despite warnings.
+                    {parseErrors!.length} minor parsing issues detected (e.g., inconsistent field counts). Data parsed successfully.
                   </AlertDescription>
                 </Alert>
               )}
               <DatasetStats stats={datasetStats} />
-              <Card className="animate-fade-in">
+              <Card className="animate-fade-in hover:shadow-lg transition-shadow duration-200">
                 <CardHeader>
                   <CardTitle>Data Preview</CardTitle>
                   <CardDescription>
@@ -133,7 +132,7 @@ export function DataStudioPage() {
                       </TableHeader>
                       <TableBody>
                         {previewRows.map((row, rowIndex) => (
-                          <TableRow key={rowIndex}>
+                          <TableRow key={rowIndex} className="hover:bg-accent">
                             {dataset.headers.map((header) => (
                               <TableCell key={`${rowIndex}-${header}`}>
                                 {String(row[header] ?? '')}
@@ -145,8 +144,8 @@ export function DataStudioPage() {
                     </Table>
                   </ScrollArea>
                   <div className="flex justify-end mt-6">
-                    <Button onClick={() => navigate('/training')}>
-                      {hasWarnings ? 'Proceed Despite Warnings' : 'Proceed to Model Lab'} <ArrowRight className="ml-2 h-4 w-4" />
+                    <Button onClick={() => navigate('/training')} className="hover:shadow-glow hover:scale-105 transition-all">
+                      {hasWarnings ? 'Proceed Despite Warnings' : 'Train Model'} <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </div>
                 </CardContent>

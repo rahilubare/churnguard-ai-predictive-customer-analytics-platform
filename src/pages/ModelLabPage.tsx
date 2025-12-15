@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/store/app-store";
 import { useTrainingStore } from "@/store/training-store";
-import { FlaskConical, Info, Rocket, XCircle, Loader2 } from "lucide-react";
+import { FlaskConical, Info, Rocket, XCircle, Loader2, ArrowRight } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -88,7 +88,6 @@ export function ModelLabPage() {
     setIsTraining(true);
     try {
       setTrainingState({ status: 'preprocessing', progress: 10 });
-      // Yield to the browser to update UI
       await new Promise(resolve => setTimeout(resolve, 50));
       const result = await trainChurnModel(dataset, localTarget, localFeatures);
       setTrainingState({ status: 'complete', progress: 100, ...result });
@@ -112,24 +111,23 @@ export function ModelLabPage() {
     if (deployed) {
       toast.success(`Model "${deployed.name}" deployed successfully!`);
       setDeployDialogOpen(false);
-      navigate('/predict');
     } else {
       toast.error("Failed to deploy model.");
     }
   };
   const allFeaturesSelected = potentialFeatures.length > 0 && localFeatures.length === potentialFeatures.length;
-  const COLORS = ['#10B981', '#F43F5E', '#F59E0B', '#3B82F6'];
+  const COLORS = ['#10B981', '#F43F5E', '#F59E0B', '#6B7280']; // TP, FN, FP, TN
   return (
     <AppLayout container>
       <div className="py-8 md:py-10 lg:py-12">
         <div className="space-y-8 animate-fade-in">
           <header className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight">Model Lab</h1>
-            <p className="text-lg text-muted-foreground">Configure, train, and evaluate your churn prediction model.</p>
+            <h1 className="text-4xl font-bold tracking-tight">Train & Version Models</h1>
+            <p className="text-lg text-muted-foreground">Configure, evaluate, and deploy your churn prediction classifiers.</p>
           </header>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
-              <Card>
+              <Card className="hover:shadow-lg transition-shadow duration-200">
                 <CardHeader>
                   <CardTitle>1. Configure Model</CardTitle>
                   <CardDescription>Select the target variable and the features for training.</CardDescription>
@@ -166,7 +164,7 @@ export function ModelLabPage() {
                 </CardContent>
               </Card>
               <div className="flex justify-end">
-                <Button size="lg" onClick={handleTrainModel} disabled={!localTarget || localFeatures.length === 0 || isTraining}>
+                <Button size="lg" onClick={handleTrainModel} disabled={!localTarget || localFeatures.length === 0 || isTraining} className="hover:shadow-glow hover:scale-105 transition-all">
                   {isTraining ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Training...</> : <><FlaskConical className="mr-2 h-5 w-5" /> Train Model</>}
                 </Button>
               </div>
@@ -188,7 +186,7 @@ export function ModelLabPage() {
               )}
               {status === 'complete' && metrics ? (
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                  <Card>
+                  <Card className="hover:shadow-lg transition-shadow duration-200">
                     <CardHeader className="flex flex-row items-center justify-between">
                       <div>
                         <CardTitle>2. Evaluation Results</CardTitle>
@@ -256,6 +254,11 @@ export function ModelLabPage() {
                             </BarChart>
                           </ResponsiveContainer>
                         ) : <Skeleton className="w-full h-[400px]" />}
+                      </div>
+                       <div className="flex justify-end mt-4">
+                          <Button onClick={() => navigate('/predict')} className="hover:shadow-glow hover:scale-105 transition-all">
+                              Score Customers <ArrowRight className="ml-2 h-4 w-4" />
+                          </Button>
                       </div>
                     </CardContent>
                   </Card>

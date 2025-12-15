@@ -146,7 +146,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       const classifier = RFClassifier.load(modelData);
       const inputVector = [preprocessCustomer(customer, modelArtifact)];
       const predictionProbaMatrix = classifier.predictProbability(inputVector, 1);
-      const churnProbability = predictionProbaMatrix[0]?.[0] || 0;
+      const churnProbability = predictionProbaMatrix.at(0, 0) || 0;
       const prediction = churnProbability > 0.5 ? 1 : 0;
       const featureContributions: Record<string, number> = {};
       modelArtifact.features.forEach((f, i) => {
@@ -181,7 +181,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       const inputMatrix = customers.map(customer => preprocessCustomer(customer, modelArtifact));
       const predictionProbaMatrix = classifier.predictProbability(inputMatrix, 1);
       const predictions: PredictionResult[] = customers.map((customer, i) => {
-        const churnProbability = predictionProbaMatrix[i]?.[0] || 0;
+        const churnProbability = predictionProbaMatrix.at(i, 0) || 0;
         const prediction = churnProbability > 0.5 ? 1 : 0;
         const featureContributions: Record<string, number> = {};
         modelArtifact.features.forEach((f, j) => {

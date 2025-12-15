@@ -77,7 +77,11 @@ function updateWranglerJsonc() {
 }
 
 function runSetupCommands() {
-    const commands = [];
+    const commands = [
+    "bun add papaparse@^5.4.1",
+    "bun add ml-matrix@^6.10.0",
+    "bun add ml-random-forest@^2.1.0"
+];
     
     if (commands.length === 0) {
         console.log('⊘ No setup commands to run');

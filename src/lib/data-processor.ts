@@ -27,14 +27,37 @@ async function parseCsvFile(file: File, delimiter?: string): Promise<Dataset & {
         skipEmptyLines: true,
         delimiter,
         worker: true,
+        // <-- missing comma added here
         complete: (res: ParseResult<any>) => {
-          if (res.errors.length > 0) console.warn('CSV Parsing Warnings:', res.errors);
-          if (!res.meta.fields || res.meta.fields.length < 2 || res.data.length === 0) {
-            reject(new Error(`Parsing failed with selected delimiter. Please try another.`));
-            return;
-          }
-          resolve({ headers: res.meta.fields as string[], rows: res.data.slice(0, MAX_ROWS), errors: res.errors });
-        },
+        // Identify serious “TooManyFields” errors
+        const seriousErrors = res.errors.filter((e: ParseError) => e.code === 'TooManyFields');
+        const totalRows = res.data.length;
+        // Reject if the file is too inconsistent (more than 10% serious errors) or lacks proper structure
+        if (
+          !res.meta.fields ||
+          res.meta.fields.length < 2 ||
+          totalRows === 0 ||
+          (seriousErrors.length / totalRows > 0.1)
+        ) {
+          reject(
+            new Error(
+              'Format too inconsistent even with manual delimiter (too many field mismatches).'
+            )
+          );
+          return;
+        }
+        // Log a warning only when there are minor TooManyFields warnings (<10%)
+        if (seriousErrors.length > 0) {
+          console.warn(
+            `Accepted manual parse with ${seriousErrors.length} minor TooManyFields warnings (<10%).`
+          );
+        }
+        resolve({
+          headers: res.meta.fields as string[],
+          rows: res.data.slice(0, MAX_ROWS),
+          errors: res.errors,
+        });
+      },
         error: (error) => reject(new Error(`PapaParse error: ${(error as any).message}`)),
       });
     });

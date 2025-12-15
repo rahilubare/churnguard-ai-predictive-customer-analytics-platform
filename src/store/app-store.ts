@@ -53,9 +53,24 @@ export const useAppStore = create<AppState & AppActions>()(
           state.parseErrors = parsedData.errors || null;
         });
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during file processing.";
-        console.error('File processing error:', error);
-        set({ isProcessing: false, error: errorMessage, dataset: null, datasetStats: null, parseErrors: (error as any).errors || null });
+        // Build a detailed error message depending on the error type
+        let errorMsg: string;
+        if (error instanceof Error) {
+          errorMsg = error.message;
+        } else if (typeof error === 'object' && error !== null) {
+          try {
+            // Attempt to stringify the error object
+            errorMsg = JSON.stringify(error) ?? 'Parse failed';
+          } catch {
+            errorMsg = 'Parse failed';
+          }
+        } else {
+          // Fallback for primitive error values
+          errorMsg = String(error) ?? 'Parse failed';
+        }
+        console.error(`File processing error: ${errorMsg}`);
+        // Reset state and store the derived error message; no parse errors are available here
+        set({ isProcessing: false, error: errorMsg, dataset: null, datasetStats: null, parseErrors: null });
       }
     },
     clearDataset: () => {

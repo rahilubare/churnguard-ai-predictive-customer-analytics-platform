@@ -29,12 +29,14 @@ export function DataStudioPage() {
   const error = useAppStore(s => s.error);
   const rawFile = useAppStore(s => s.rawFile);
   const parseErrors = useAppStore(s => s.parseErrors);
+  // Flag for minor parsing warnings (e.g., extra fields)
+  const hasWarnings = !!parseErrors?.length > 0;
   const [delimiter, setDelimiter] = useState<string | undefined>(undefined);
   const handleProcess = async (manualDelimiter?: string) => {
     await processFile(manualDelimiter);
   };
-  const previewRows = dataset?.rows.slice(0, Math.min(100, dataset.rows.length)) ?? [];
-  const showDelimiterSelector = error && (parseErrors && parseErrors.length > 3 || error.includes('delimiter'));
+  const previewRows = dataset?.rows?.slice(0, Math.min(100, dataset?.rows?.length ?? 0)) ?? [];
+  const showDelimiterSelector = !!error && (error.includes('Ambiguous') || error.includes('format') || error.includes('delimiter'));
   return (
     <AppLayout container>
       <div className="py-8 md:py-10 lg:py-12">
@@ -102,6 +104,15 @@ export function DataStudioPage() {
           )}
           {dataset && datasetStats && (
             <>
+              {hasWarnings && (
+                <Alert variant="warning">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Parsing Warnings</AlertTitle>
+                  <AlertDescription>
+                    {parseErrors!.length} minor parsing issues detected (extra fields). Data parsed successfully - proceed despite warnings.
+                  </AlertDescription>
+                </Alert>
+              )}
               <DatasetStats stats={datasetStats} />
               <Card className="animate-fade-in">
                 <CardHeader>
@@ -135,7 +146,7 @@ export function DataStudioPage() {
                   </ScrollArea>
                   <div className="flex justify-end mt-6">
                     <Button onClick={() => navigate('/training')}>
-                      Proceed to Model Lab <ArrowRight className="ml-2 h-4 w-4" />
+                      {hasWarnings ? 'Proceed Despite Warnings' : 'Proceed to Model Lab'} <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </div>
                 </CardContent>

@@ -143,12 +143,10 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       const modelArtifact = await modelEntity.getState();
       if (modelArtifact.orgId !== authContext.orgId) return c.json({ success: false, error: 'Forbidden' }, 403);
       const modelData = JSON.parse(modelArtifact.modelJson);
-      const classifier = RFClassifier.load(modelData, 42);
+      const classifier = RFClassifier.load(modelData);
       const inputVector = [preprocessCustomer(customer, modelArtifact)];
-      const inputMatrix = new Matrix(inputVector as any[]);
-      const predictionProbaMatrix = classifier.predictProbability(inputMatrix);
-      const probaMatrix: number[][] = Array.isArray(predictionProbaMatrix) ? predictionProbaMatrix : (predictionProbaMatrix as any).to2DArray();
-      const churnProbability = probaMatrix[0]?.[1] || 0;
+      const predictionProbaMatrix = classifier.predictProbability(inputVector, 1);
+      const churnProbability = predictionProbaMatrix[0]?.[0] || 0;
       const prediction = churnProbability > 0.5 ? 1 : 0;
       const featureContributions: Record<string, number> = {};
       modelArtifact.features.forEach((f, i) => {
@@ -179,18 +177,16 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       const modelArtifact = await modelEntity.getState();
       if (modelArtifact.orgId !== authContext.orgId) return c.json({ success: false, error: 'Forbidden' }, 403);
       const modelData = JSON.parse(modelArtifact.modelJson);
-      const classifier = RFClassifier.load(modelData, 42);
-      const predictions: PredictionResult[] = customers.map(customer => {
-        const inputVector = [preprocessCustomer(customer, modelArtifact)];
-        const inputMatrix = new Matrix(inputVector as any[]);
-        const predictionProbaMatrix = classifier.predictProbability(inputMatrix);
-        const probaMatrix: number[][] = Array.isArray(predictionProbaMatrix) ? predictionProbaMatrix : (predictionProbaMatrix as any).to2DArray();
-        const churnProbability = probaMatrix[0]?.[1] || 0;
+      const classifier = RFClassifier.load(modelData);
+      const inputMatrix = customers.map(customer => preprocessCustomer(customer, modelArtifact));
+      const predictionProbaMatrix = classifier.predictProbability(inputMatrix, 1);
+      const predictions: PredictionResult[] = customers.map((customer, i) => {
+        const churnProbability = predictionProbaMatrix[i]?.[0] || 0;
         const prediction = churnProbability > 0.5 ? 1 : 0;
         const featureContributions: Record<string, number> = {};
-        modelArtifact.features.forEach((f, i) => {
+        modelArtifact.features.forEach((f, j) => {
           const importance = modelArtifact.featureImportance?.[f] || 0;
-          const value = inputVector[0][i] || 0;
+          const value = inputMatrix[i][j] || 0;
           featureContributions[f] = importance * (value - 0.5) * (prediction === 1 ? 1 : -1);
         });
         return { churnProbability, prediction, featureContributions };
@@ -201,16 +197,5 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       console.error("Batch prediction error:", error);
       return c.json({ success: false, error: 'Batch prediction failed' }, 500);
     }
-  });
-  // --- PYTHON PROXY STUBS ---
-  app.post('/api/orgs/:orgId/train', async (c) => {
-    const authContext = await verifyAuth(c);
-    if (!authContext || c.req.param('orgId') !== authContext.orgId) return c.json({ success: false, error: 'Forbidden' }, 403);
-    return ok(c, { status: 'mock training started', version: 'py-1.0' });
-  });
-  app.post('/api/orgs/:orgId/predict', async (c) => {
-    const authContext = await verifyAuth(c);
-    if (!authContext || c.req.param('orgId') !== authContext.orgId) return c.json({ success: false, error: 'Forbidden' }, 403);
-    return ok(c, { prediction: 0, probability: 0.1, version: 'py-1.0' });
   });
 }

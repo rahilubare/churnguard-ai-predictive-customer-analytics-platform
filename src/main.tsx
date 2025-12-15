@@ -20,6 +20,7 @@ import { AuthPage } from '@/pages/AuthPage';
 import { useAuthStore } from './store/auth-store';
 import { Loader2 } from 'lucide-react';
 const queryClient = new QueryClient();
+/* eslint-disable react-refresh/only-export-components */
 function AuthWrapper({ children }: { children: JSX.Element }) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const isLoading = useAuthStore(s => s.isLoading);
@@ -51,6 +52,7 @@ function NonAuthWrapper({ children }: { children: JSX.Element }) {
   }
   return children;
 }
+/* eslint-enable react-refresh/only-export-components */
 const router = createBrowserRouter([
   {
     path: "/",

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileUpload } from "@/components/ui/file-upload";
 import { useAppStore } from "@/store/app-store";
-import { ArrowRight, Loader2, AlertTriangle } from "lucide-react";
+import { ArrowRight, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   Table,
@@ -16,6 +16,9 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DatasetStats } from "@/components/ui/dataset-stats";
+import { useState } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 export function DataStudioPage() {
   const navigate = useNavigate();
   const setFile = useAppStore(s => s.setFile);
@@ -25,10 +28,13 @@ export function DataStudioPage() {
   const datasetStats = useAppStore(s => s.datasetStats);
   const error = useAppStore(s => s.error);
   const rawFile = useAppStore(s => s.rawFile);
-  const handleProcess = async () => {
-    await processFile();
+  const parseErrors = useAppStore(s => s.parseErrors);
+  const [delimiter, setDelimiter] = useState<string | undefined>(undefined);
+  const handleProcess = async (manualDelimiter?: string) => {
+    await processFile(manualDelimiter);
   };
-  const previewRows = dataset?.rows.slice(0, 10) ?? [];
+  const previewRows = dataset?.rows.slice(0, Math.min(100, dataset.rows.length)) ?? [];
+  const showDelimiterSelector = error && (parseErrors && parseErrors.length > 3 || error.includes('delimiter'));
   return (
     <AppLayout container>
       <div className="py-8 md:py-10 lg:py-12">
@@ -46,29 +52,50 @@ export function DataStudioPage() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+          {showDelimiterSelector && rawFile && (
+            <Card className="bg-destructive/10 border-destructive">
+              <CardHeader>
+                <CardTitle>Parsing Ambiguous</CardTitle>
+                <CardDescription>We had trouble automatically parsing your CSV. Please select the correct delimiter and retry.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-end gap-4">
+                <div className="flex-grow">
+                  <Label htmlFor="delimiter-select">Delimiter</Label>
+                  <Select onValueChange={setDelimiter} defaultValue={delimiter}>
+                    <SelectTrigger id="delimiter-select">
+                      <SelectValue placeholder="Select a delimiter..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value=",">Comma (,)</SelectItem>
+                      <SelectItem value=";">Semicolon (;)</SelectItem>
+                      <SelectItem value="\t">Tab</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={() => handleProcess(delimiter)} disabled={isProcessing || !delimiter}>
+                  <RefreshCw className="mr-2 h-4 w-4" /> Retry Parse
+                </Button>
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader>
               <CardTitle>1. Upload Dataset</CardTitle>
               <CardDescription>
-                Select a CSV file containing historical customer data. Ensure it includes a column indicating churn.
+                Select a CSV or XLSX file containing historical customer data. Ensure it includes a column indicating churn.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <FileUpload onFileSelect={setFile} />
             </CardContent>
           </Card>
-          {rawFile && !dataset && (
+          {rawFile && !dataset && !showDelimiterSelector && (
             <div className="flex justify-end">
-              <Button onClick={handleProcess} disabled={isProcessing}>
+              <Button onClick={() => handleProcess()} disabled={isProcessing}>
                 {isProcessing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
                 ) : (
-                  <>
-                    Inspect & Preview Data <ArrowRight className="ml-2 h-4 w-4" />
-                  </>
+                  <>Inspect & Preview Data <ArrowRight className="ml-2 h-4 w-4" /></>
                 )}
               </Button>
             </div>
@@ -80,7 +107,7 @@ export function DataStudioPage() {
                 <CardHeader>
                   <CardTitle>Data Preview</CardTitle>
                   <CardDescription>
-                    Showing the first {previewRows.length} rows of your dataset. Verify that the data is parsed correctly.
+                    Showing the first {previewRows.length} of {dataset.rows.length} rows. Verify that the data is parsed correctly.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

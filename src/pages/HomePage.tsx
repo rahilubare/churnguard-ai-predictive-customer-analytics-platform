@@ -130,7 +130,7 @@ export function HomePage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">2,350</div>
-                    <p className="text-xs text-muted-foreground">Customers with >75% churn prob.</p>
+                    <p className="text-xs text-muted-foreground">Customers with &gt;75% churn prob.</p>
                     <div className="h-20 mt-2 -ml-4">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={mockBarData}>

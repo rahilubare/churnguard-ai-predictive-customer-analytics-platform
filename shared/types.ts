@@ -3,21 +3,31 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
 }
-// Demo types to fix compilation errors
+// SaaS & Auth Types
+export type Role = 'owner' | 'member';
 export interface User {
   id: string;
+  email: string;
+  passwordHash: string;
+  orgId: string;
+  role: Role;
+  name?: string;
+}
+export interface OrgState {
+  id: string;
   name: string;
+  subTier: 'free' | 'pro' | 'enterprise';
+  maxRows: number;
 }
-export interface Chat {
-  id: string;
-  title: string;
-}
-export interface ChatMessage {
-  id: string;
-  chatId: string;
+export interface SessionState {
   userId: string;
-  text: string;
-  ts: number;
+  orgId: string;
+  exp: number; // Expiration timestamp
+}
+export interface AuthResponse {
+  token: string;
+  user: Pick<User, 'id' | 'email' | 'role'>;
+  org: Pick<OrgState, 'id' | 'name' | 'subTier'>;
 }
 // ChurnGuard AI Specific Types
 export interface Dataset {
@@ -49,6 +59,7 @@ export interface FeatureImportance {
 }
 export interface ModelMetadata {
   id: string;
+  orgId: string;
   name: string;
   createdAt: number;
   targetVariable: string;

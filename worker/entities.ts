@@ -1,35 +1,44 @@
 /**
- * Entities for ChurnGuard AI and the original demo.
+ * Entities for ChurnGuard AI.
  */
 import { IndexedEntity } from "./core-utils";
-import type { User, Chat, ChatMessage, ModelArtifact } from "@shared/types";
-import { MOCK_CHAT_MESSAGES, MOCK_CHATS, MOCK_USERS } from "@shared/mock-data";
-// USER ENTITY: one DO instance per user
+import type { User, ModelArtifact, SessionState, OrgState, Role } from "@shared/types";
+// USER ENTITY
 export class UserEntity extends IndexedEntity<User> {
   static readonly entityName = "user";
   static readonly indexName = "users";
-  static readonly initialState: User = { id: "", name: "" };
-  static seedData = MOCK_USERS;
+  static readonly initialState: User = {
+    id: "",
+    email: "",
+    passwordHash: "",
+    orgId: "",
+    role: "member" as Role,
+  };
+  static seedData = []; // No seed data for production users
 }
-// CHAT BOARD ENTITY: one DO instance per chat board, stores its own messages
-export type ChatBoardState = Chat & { messages: ChatMessage[] };
-const SEED_CHAT_BOARDS: ChatBoardState[] = MOCK_CHATS.map(c => ({
-  ...c,
-  messages: MOCK_CHAT_MESSAGES.filter(m => m.chatId === c.id),
-}));
-export class ChatBoardEntity extends IndexedEntity<ChatBoardState> {
-  static readonly entityName = "chat";
-  static readonly indexName = "chats";
-  static readonly initialState: ChatBoardState = { id: "", title: "", messages: [] };
-  static seedData = SEED_CHAT_BOARDS;
-  async listMessages(): Promise<ChatMessage[]> {
-    const { messages } = await this.getState();
-    return messages;
-  }
-  async sendMessage(userId: string, text: string): Promise<ChatMessage> {
-    const msg: ChatMessage = { id: crypto.randomUUID(), chatId: this.id, userId, text, ts: Date.now() };
-    await this.mutate(s => ({ ...s, messages: [...s.messages, msg] }));
-    return msg;
+// ORGANIZATION ENTITY
+export class OrgEntity extends IndexedEntity<OrgState> {
+  static readonly entityName = "org";
+  static readonly indexName = "orgs";
+  static readonly initialState: OrgState = {
+    id: "",
+    name: "",
+    subTier: "free",
+    maxRows: 10000,
+  };
+}
+// SESSION ENTITY (for token-based auth)
+export class SessionEntity extends IndexedEntity<SessionState> {
+  static readonly entityName = "session";
+  static readonly indexName = "sessions";
+  static readonly initialState: SessionState = {
+    userId: "",
+    orgId: "",
+    exp: 0,
+  };
+  // Use session token as the ID
+  static override keyOf(state: SessionState & { id: string }): string {
+    return state.id;
   }
 }
 // MODEL ENTITY: Stores trained model artifacts
@@ -38,6 +47,7 @@ export class ModelEntity extends IndexedEntity<ModelArtifact> {
   static readonly indexName = "models";
   static readonly initialState: ModelArtifact = {
     id: "",
+    orgId: "",
     name: "",
     createdAt: 0,
     targetVariable: "",

@@ -15,6 +15,7 @@ import { HomePage } from '@/pages/HomePage'
 import { DataStudioPage } from '@/pages/DataStudioPage';
 import { ModelLabPage } from '@/pages/ModelLabPage';
 import { PredictionCenterPage } from '@/pages/PredictionCenterPage';
+import { AuthPage } from '@/pages/AuthPage';
 const queryClient = new QueryClient();
 const router = createBrowserRouter([
   {
@@ -35,6 +36,11 @@ const router = createBrowserRouter([
   {
     path: "/predict",
     element: <PredictionCenterPage />,
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
+    path: "/auth",
+    element: <AuthPage />,
     errorElement: <RouteErrorBoundary />,
   },
 ]);

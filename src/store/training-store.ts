@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { ModelMetrics, ModelArtifact, FeatureImportance } from '@shared/types';
 import { api } from '@/lib/api-client';
+import { useAuthStore } from '@/store/auth-store';
 export type TrainingStatus = 'idle' | 'configuring' | 'preprocessing' | 'training' | 'evaluating' | 'complete' | 'error' | 'deploying';
 interface TrainingState {
   targetVariable: string | null;
@@ -60,14 +61,20 @@ export const useTrainingStore = create<TrainingState & TrainingActions>()(
     },
     deployModel: async (modelName: string) => {
       const { trainedModel, targetVariable, selectedFeatures, metrics, featureImportance } = get();
+      const authStore = useAuthStore.getState();
       if (!trainedModel || !targetVariable || !metrics) {
         set({ status: 'error', error: 'No trained model to deploy.' });
+        return null;
+      }
+      if (!authStore.orgId) {
+        set({ status: 'error', error: 'Authentication error: No organization ID found.' });
         return null;
       }
       set({ status: 'deploying' });
       try {
         const modelToDeploy: Omit<ModelArtifact, 'id' | 'createdAt'> = {
           name: modelName,
+          orgId: authStore.orgId,
           targetVariable,
           features: selectedFeatures,
           performance: metrics,

@@ -3,6 +3,7 @@ import { immer } from 'zustand/middleware/immer';
 import { parseFile, getDatasetStats } from '@/lib/data-processor';
 import type { Dataset, ColumnStat } from '@shared/types';
 import type { ParseError } from 'papaparse';
+import { get, set as setKey, del } from 'idb-keyval';
 interface AppState {
   rawFile: File | null;
   dataset: Dataset | null;
@@ -24,8 +25,26 @@ const initialState: AppState = {
   error: null,
   parseErrors: null,
 };
+const DATASET_KEY = 'churnguard_dataset';
+const STATS_KEY = 'churnguard_stats';
+
+// Helper to hydrate state from IDB
+const hydrate = async () => {
+  try {
+    const [dataset, stats] = await Promise.all([
+      get<Dataset>(DATASET_KEY),
+      get<Record<string, ColumnStat>>(STATS_KEY)
+    ]);
+    if (dataset && stats) {
+      useAppStore.setState({ dataset, datasetStats: stats });
+    }
+  } catch (e) {
+    console.error('Failed to hydrate dataset', e);
+  }
+};
+
 export const useAppStore = create<AppState & AppActions>()(
-  immer((set, get) => ({
+  immer((set, getStore) => ({
     ...initialState,
     setFile: (file) => {
       set((state) => {
@@ -35,9 +54,12 @@ export const useAppStore = create<AppState & AppActions>()(
         state.error = null;
         state.parseErrors = null;
       });
+      // Clear persistence
+      del(DATASET_KEY);
+      del(STATS_KEY);
     },
     processFile: async (delimiter?: string) => {
-      const file = get().rawFile;
+      const file = getStore().rawFile;
       if (!file) return;
       set({ isProcessing: true, error: null, parseErrors: null });
       try {
@@ -46,6 +68,13 @@ export const useAppStore = create<AppState & AppActions>()(
           throw new Error("File is empty or could not be parsed.");
         }
         const stats = getDatasetStats(parsedData);
+
+        // Persist to IDB
+        await Promise.all([
+          setKey(DATASET_KEY, parsedData),
+          setKey(STATS_KEY, stats)
+        ]);
+
         set((state) => {
           state.dataset = parsedData;
           state.datasetStats = stats;
@@ -75,6 +104,11 @@ export const useAppStore = create<AppState & AppActions>()(
     },
     clearDataset: () => {
       set(initialState);
+      del(DATASET_KEY);
+      del(STATS_KEY);
     },
   }))
 );
+
+// Initialize hydration
+hydrate();

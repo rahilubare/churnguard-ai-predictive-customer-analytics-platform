@@ -45,7 +45,7 @@ const customLogger = {
   hasErrorLogged: () => false,
 
   // Keep these as-is
-  clearScreen: () => {},
+  clearScreen: () => { },
   hasWarned: false,
 };
 

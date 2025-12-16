@@ -91,12 +91,24 @@ export function PredictionCenterPage() {
     setBatchResults(null);
     try {
       const parsed = await parseCsv(batchFile);
-      const result = await api<PredictionBatchResult>('/api/batch-predict', {
-        method: 'POST',
-        body: JSON.stringify({ modelId: selectedModel.id, customers: parsed.rows }),
-      });
-      setBatchResults(result.predictions);
-      toast.success(`Successfully processed ${result.total} customers.`);
+      const BATCH_SIZE = 100;
+      const totalRows = parsed.rows.length;
+      let allPredictions: PredictionResult[] = [];
+
+      // Process in chunks
+      for (let i = 0; i < totalRows; i += BATCH_SIZE) {
+        const chunk = parsed.rows.slice(i, i + BATCH_SIZE);
+        const result = await api<PredictionBatchResult>('/api/batch-predict', {
+          method: 'POST',
+          body: JSON.stringify({ modelId: selectedModel.id, customers: chunk }),
+        });
+        if (result && result.predictions) {
+          allPredictions = [...allPredictions, ...result.predictions];
+        }
+      }
+
+      setBatchResults(allPredictions);
+      toast.success(`Successfully processed ${allPredictions.length} customers.`);
     } catch (error) {
       toast.error("Batch prediction failed", { description: error instanceof Error ? error.message : "An unknown error occurred." });
     } finally {
@@ -106,8 +118,8 @@ export function PredictionCenterPage() {
   const churnProbabilityPercent = prediction ? (prediction.churnProbability * 100) : 0;
   const featureContributionData = prediction
     ? Object.entries(prediction.featureContributions)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => Math.abs(a.value) - Math.abs(b.value))
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => Math.abs(a.value) - Math.abs(b.value))
     : [];
   const batchSummary = useMemo(() => {
     if (!batchResults) return null;
@@ -221,7 +233,7 @@ export function PredictionCenterPage() {
                             <div className="h-64">
                               <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
-                                  <Pie data={[{name: 'Churn', value: batchSummary.churnCount}, {name: 'No Churn', value: batchSummary.noChurnCount}]} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                                  <Pie data={[{ name: 'Churn', value: batchSummary.churnCount }, { name: 'No Churn', value: batchSummary.noChurnCount }]} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
                                     <Cell fill="#F43F5E" /><Cell fill="#10B981" />
                                   </Pie>
                                   <Tooltip />
@@ -258,7 +270,7 @@ export function PredictionCenterPage() {
                           </CardContent>
                         </Card>
                         <div className="lg:col-span-2 flex justify-end">
-                            <Button className="hover:shadow-glow hover:scale-105 transition-all">View Insights <ArrowRight className="ml-2 h-4 w-4" /></Button>
+                          <Button className="hover:shadow-glow hover:scale-105 transition-all">View Insights <ArrowRight className="ml-2 h-4 w-4" /></Button>
                         </div>
                       </motion.div>
                     )}

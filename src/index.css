@@ -186,4 +186,68 @@
   .text-body {
     @apply text-base sm:text-lg text-muted-foreground leading-relaxed;
   }
+  
+  /* Enhanced Shadows */
+  .shadow-glow {
+    box-shadow: 0 0 20px rgba(243, 128, 32, 0.3), 0 0 40px rgba(243, 128, 32, 0.1);
+  }
+  
+  .shadow-glass {
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  }
+  
+  .shadow-premium {
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1), 0 10px 30px rgba(0, 0, 0, 0.05);
+  }
+  
+  /* Enhanced Glassmorphism */
+  .glass-card {
+    @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-white/20 dark:border-gray-700/20 shadow-premium;
+  }
+  
+  .glass-hover {
+    @apply transition-all duration-300 hover:bg-white/90 dark:hover:bg-gray-900/90 hover:shadow-glow;
+  }
+  
+  /* Gradient Backgrounds */
+  .bg-gradient-radial {
+    background: radial-gradient(circle at top right, rgba(243, 128, 32, 0.1), transparent 50%);
+  }
+  
+  /* Smooth Transitions */
+  .transition-smooth {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  /* Card Enhancements */
+  .card-interactive {
+    @apply transition-smooth hover:shadow-premium hover:-translate-y-1 cursor-pointer;
+  }
+  
+  /* Animations */
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+  
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 20px rgba(243, 128, 32, 0.2);
+    }
+    50% {
+      box-shadow: 0 0 40px rgba(243, 128, 32, 0.4);
+    }
+  }
+  
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+  }
+  
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
 }

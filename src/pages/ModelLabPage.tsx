@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/store/app-store";
 import { useTrainingStore } from "@/store/training-store";
-import { FlaskConical, Info, Rocket, XCircle, Loader2, ArrowRight, FileText } from "lucide-react";
+import { FlaskConical, Info, Rocket, XCircle, Loader2, ArrowRight, FileText, ShieldCheck, AlertTriangle, ShieldAlert } from "lucide-react";
 import { generateBrandedReport } from "@/lib/report-generator";
+import { auditDataset } from "@/lib/data-auditor";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,7 +34,9 @@ export function ModelLabPage() {
   const startTraining = useTrainingStore(s => s.startTraining);
   const setTrainingState = useTrainingStore(s => s.setTrainingState);
   const deployModel = useTrainingStore(s => s.deployModel);
+  const algorithm = useTrainingStore(s => s.algorithm);
   const [localTarget, setLocalTarget] = useState<string>(targetVariable ?? '');
+  const [localAlgorithm, setLocalAlgorithm] = useState<string>('python_gbdt');
   const [localFeatures, setLocalFeatures] = useState<string[]>(selectedFeatures);
   const [modelName, setModelName] = useState("");
   const [isDeployDialogOpen, setDeployDialogOpen] = useState(false);
@@ -46,6 +49,11 @@ export function ModelLabPage() {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => a.value - b.value);
   }, [featureImportance]);
+  const auditReport = useMemo(() => {
+    if (!dataset) return null;
+    return auditDataset(dataset, dataset.stats);
+  }, [dataset]);
+  const isLargeDataset = dataset.rows.length > 50000;
   const metricsData = useMemo(() => {
     if (!metrics) return [];
     return [
@@ -84,13 +92,13 @@ export function ModelLabPage() {
       toast.error("Configuration incomplete", { description: "Please select a target variable and at least one feature." });
       return;
     }
-    setConfig(localTarget, localFeatures);
+    setConfig(localTarget, localFeatures, localAlgorithm);
     startTraining();
     setIsTraining(true);
     try {
       setTrainingState({ status: 'preprocessing', progress: 10 });
       await new Promise(resolve => setTimeout(resolve, 50));
-      const result = await trainChurnModel(dataset, localTarget, localFeatures);
+      const result = await trainChurnModel(dataset, localTarget, localFeatures, localAlgorithm);
       setTrainingState({ status: 'complete', progress: 100, ...result });
       toast.success("Training complete!");
     } catch (e) {
@@ -126,6 +134,26 @@ export function ModelLabPage() {
             <h1 className="text-4xl font-bold tracking-tight">Train & Version Models</h1>
             <p className="text-lg text-muted-foreground">Configure, evaluate, and deploy your churn prediction classifiers.</p>
           </header>
+
+          {/* Privacy & Scaling Alerts */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Alert className="bg-primary/5 border-primary/20">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              <AlertTitle>Privacy Mode Active</AlertTitle>
+              <AlertDescription>
+                Ensure your dataset is **anonymized**. Avoid uploading PII (names, emails, phone numbers) for maximum security.
+              </AlertDescription>
+            </Alert>
+            {isLargeDataset && (
+              <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Scaling Warning</AlertTitle>
+                <AlertDescription>
+                  Your dataset has {dataset.rows.length.toLocaleString()} rows. Training might be slow or time out in the browser.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
               <Card className="hover:shadow-lg transition-shadow duration-200">
@@ -143,6 +171,7 @@ export function ModelLabPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* Algorithm selection hidden from user */}
                   {localTarget && (
                     <div className="space-y-4">
                       <Label>Feature Variables (Inputs for prediction)</Label>
@@ -279,13 +308,50 @@ export function ModelLabPage() {
                 </div>
               )}
             </div>
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-1 space-y-6">
+              <Card className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-primary">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-medium">Data Health HUD</CardTitle>
+                    {auditReport?.summary.overallScore && (
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${auditReport.summary.overallScore > 80 ? 'bg-emerald-100 text-emerald-700' :
+                          auditReport.summary.overallScore > 50 ? 'bg-amber-100 text-amber-700' :
+                            'bg-red-100 text-red-700'
+                        }`}>
+                        Score: {auditReport.summary.overallScore}/100
+                      </span>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {auditReport?.summary.criticalCount ? (
+                    <div className="flex items-start gap-2 text-red-600 bg-red-50 p-2 rounded text-xs">
+                      <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-bold">{auditReport.summary.criticalCount} Critical issues found</p>
+                        <p>Training accuracy may be compromised.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2 text-emerald-600 bg-emerald-50 p-2 rounded text-xs">
+                      <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-bold">No critical issues</p>
+                        <p>Your dataset is healthy and ready for AI.</p>
+                      </div>
+                    </div>
+                  )}
+                  <Button variant="ghost" size="sm" className="w-full text-xs h-8" onClick={() => navigate('/data')}>
+                    View Full Audit Report →
+                  </Button>
+                </CardContent>
+              </Card>
+
               <Card className="sticky top-24">
                 <CardHeader><CardTitle>Configuration Summary</CardTitle></CardHeader>
                 <CardContent className="space-y-4 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Target:</span><span className="font-medium">{localTarget || 'Not set'}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Features:</span><span className="font-medium">{localFeatures.length} selected</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Algorithm:</span><span className="font-medium">Random Forest</span></div>
                   <Alert>
                     <Info className="h-4 w-4" />
                     <AlertTitle>Next Step</AlertTitle>

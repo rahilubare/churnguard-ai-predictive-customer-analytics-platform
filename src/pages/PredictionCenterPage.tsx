@@ -146,6 +146,26 @@ export function PredictionCenterPage() {
             <h1 className="text-4xl font-bold tracking-tight">Score Customers</h1>
             <p className="text-lg text-muted-foreground">Run single or batch predictions and perform risk analysis.</p>
           </header>
+
+          {/* Privacy & Model Drift Alerts */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Alert className="bg-primary/5 border-primary/20">
+              <AlertCircle className="h-4 w-4 text-primary" />
+              <AlertTitle>Privacy Note</AlertTitle>
+              <AlertDescription>
+                Predictions are processed securely. Ensure your input data is **anonymized** (no names/emails).
+              </AlertDescription>
+            </Alert>
+            {selectedModel && (Date.now() - selectedModel.createdAt > 30 * 24 * 60 * 60 * 1000) && (
+              <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Model Drift Warning</AlertTitle>
+                <AlertDescription>
+                  This model is over 30 days old. Accuracy may have decreased. Consider **retraining** for best results.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
           <Card className="hover:shadow-lg transition-shadow duration-200">
             <CardHeader><CardTitle>1. Select a Deployed Model</CardTitle></CardHeader>
             <CardContent>

@@ -2,12 +2,14 @@ import { Hono } from "hono";
 import { query } from "./db";
 import { v4 as uuidv4 } from 'uuid';
 import { RandomForestClassifier as RFClassifier } from 'ml-random-forest';
-import type { ModelArtifact, PredictionResult, BatchPredictRequest, PredictionBatchResult, AuthResponse, User, OrgState, Role } from "@shared/types";
+import { GBDTClassifier } from "../shared/gbdt";
+import type { ModelArtifact, PredictionResult, BatchPredictRequest, PredictionBatchResult, AuthResponse, Role } from "@shared/types";
 import crypto from 'node:crypto';
+import { spawn } from 'node:child_process';
+import path from 'node:path';
 
 // --- AUTH UTILITIES ---
 async function hashPassword(password: string, salt: string): Promise<string> {
-    // Using same simple hashing for demo consistency, but in prod use bcrypt/argon2
     const hash = crypto.createHash('sha256').update(password + salt).digest('hex');
     return hash;
 }
@@ -46,6 +48,46 @@ function preprocessCustomer(customer: Record<string, any>, modelArtifact: ModelA
     });
 }
 
+// --- PYTHON BRIDGE ---
+async function runPythonScript(command: string, payload: any): Promise<any> {
+    return new Promise((resolve, reject) => {
+        const pythonPath = 'python'; // Or absolute path if needed
+        const scriptPath = path.join(process.cwd(), 'server', 'ml_gbdt.py');
+
+        const py = spawn(pythonPath, [scriptPath]);
+        let output = '';
+        let errorOutput = '';
+
+        py.stdout.on('data', (data) => {
+            output += data.toString();
+        });
+
+        py.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+        });
+
+        py.on('close', (code) => {
+            if (code !== 0) {
+                reject(new Error(`Python process exited with code ${code}: ${errorOutput}`));
+                return;
+            }
+            try {
+                const result = JSON.parse(output);
+                if (result.success) {
+                    resolve(result.data);
+                } else {
+                    reject(new Error(result.error || 'Unknown Python error'));
+                }
+            } catch (e) {
+                reject(new Error(`Failed to parse Python output: ${output}`));
+            }
+        });
+
+        py.stdin.write(JSON.stringify({ command, payload }));
+        py.stdin.end();
+    });
+}
+
 export function userRoutes(app: Hono) {
     // --- AUTH ROUTES ---
     app.post('/api/auth/register', async (c) => {
@@ -59,7 +101,6 @@ export function userRoutes(app: Hono) {
         const passwordHash = await hashPassword(password, userId);
         const orgId = uuidv4();
 
-        // Transaction ideally
         await query('INSERT INTO Orgs (id, name) VALUES (@id, @name)', { id: orgId, name: orgName });
         await query('INSERT INTO Users (id, email, password_hash, org_id, role) VALUES (@id, @email, @hash, @orgId, @role)',
             { id: userId, email, hash: passwordHash, orgId, role: 'owner' });
@@ -139,7 +180,8 @@ export function userRoutes(app: Hono) {
             performance: JSON.parse(row.performance),
             modelJson: row.model_json,
             encodingMap: JSON.parse(row.encoding_map),
-            featureImportance: JSON.parse(row.feature_importance)
+            featureImportance: JSON.parse(row.feature_importance),
+            algorithm: row.algorithm || 'random_forest'
         }));
 
         return c.json({ success: true, data: { items, next: null } });
@@ -163,10 +205,11 @@ export function userRoutes(app: Hono) {
             modelJson: body.modelJson,
             encodingMap: body.encodingMap || {},
             featureImportance: body.featureImportance || {},
+            algorithm: body.algorithm || 'random_forest',
         };
 
-        await query(`INSERT INTO Models (id, org_id, name, created_at, target_variable, features, performance, encoding_map, feature_importance, model_json)
-     VALUES (@id, @orgId, @name, @createdAt, @targetVariable, @features, @performance, @encodingMap, @featureImportance, @modelJson)`, {
+        await query(`INSERT INTO Models (id, org_id, name, created_at, target_variable, features, performance, encoding_map, feature_importance, model_json, algorithm)
+     VALUES (@id, @orgId, @name, @createdAt, @targetVariable, @features, @performance, @encodingMap, @featureImportance, @modelJson, @algorithm)`, {
             id: newModel.id,
             orgId: newModel.orgId,
             name: newModel.name,
@@ -176,10 +219,77 @@ export function userRoutes(app: Hono) {
             performance: JSON.stringify(newModel.performance),
             encodingMap: JSON.stringify(newModel.encodingMap),
             featureImportance: JSON.stringify(newModel.featureImportance),
-            modelJson: newModel.modelJson
+            modelJson: newModel.modelJson,
+            algorithm: newModel.algorithm
         });
 
         return c.json({ success: true, data: newModel });
+    });
+
+    // --- NEW: SERVER-SIDE TRAINING (FOR PYTHON) ---
+    app.post('/api/models/train', async (c) => {
+        const auth = await verifyAuth(c);
+        if (!auth) return c.json({ success: false, error: 'Unauthorized' }, 401);
+
+        const { name, dataset, targetVariable, features, algorithm } = await c.req.json<{
+            name: string;
+            dataset: { X: number[][], y: number[] };
+            targetVariable: string;
+            features: string[];
+            algorithm: string;
+        }>();
+
+        if (algorithm !== 'python_gbdt') {
+            return c.json({ success: false, error: 'Only python_gbdt is supported for server-side training' }, 400);
+        }
+
+        try {
+            const result = await runPythonScript('train', { X: dataset.X, y: dataset.y });
+
+            const newModel: ModelArtifact = {
+                id: uuidv4(),
+                orgId: auth.orgId,
+                name,
+                createdAt: Date.now(),
+                targetVariable,
+                features,
+                performance: {
+                    accuracy: result.metrics.accuracy,
+                    precision: result.metrics.accuracy,
+                    recall: result.metrics.accuracy,
+                    f1: result.metrics.accuracy,
+                    rocAuc: result.metrics.accuracy,
+                    confusionMatrix: { truePositive: 0, trueNegative: 0, falsePositive: 0, falseNegative: 0 }
+                },
+                modelJson: result.model_json,
+                encodingMap: {},
+                featureImportance: features.reduce((acc, f, i) => {
+                    acc[f] = result.feature_importances[i];
+                    return acc;
+                }, {} as Record<string, number>),
+                algorithm: 'python_gbdt'
+            };
+
+            await query(`INSERT INTO Models (id, org_id, name, created_at, target_variable, features, performance, encoding_map, feature_importance, model_json, algorithm)
+         VALUES (@id, @orgId, @name, @createdAt, @targetVariable, @features, @performance, @encodingMap, @featureImportance, @modelJson, @algorithm)`, {
+                id: newModel.id,
+                orgId: newModel.orgId,
+                name: newModel.name,
+                createdAt: newModel.createdAt,
+                targetVariable: newModel.targetVariable,
+                features: JSON.stringify(newModel.features),
+                performance: JSON.stringify(newModel.performance),
+                encodingMap: JSON.stringify(newModel.encodingMap),
+                featureImportance: JSON.stringify(newModel.featureImportance),
+                modelJson: newModel.modelJson,
+                algorithm: newModel.algorithm
+            });
+
+            return c.json({ success: true, data: newModel });
+        } catch (e: any) {
+            console.error(e);
+            return c.json({ success: false, error: e.message || 'Python training failed' }, 500);
+        }
     });
 
     // --- PREDICT ---
@@ -205,15 +315,31 @@ export function userRoutes(app: Hono) {
             performance: JSON.parse(row.performance),
             modelJson: row.model_json,
             encodingMap: JSON.parse(row.encoding_map),
-            featureImportance: JSON.parse(row.feature_importance)
+            featureImportance: JSON.parse(row.feature_importance),
+            algorithm: row.algorithm || 'random_forest'
         };
 
         try {
-            const modelData = JSON.parse(modelArtifact.modelJson);
-            const classifier = RFClassifier.load(modelData);
             const inputVector = [preprocessCustomer(customer, modelArtifact)];
-            const predictionProbaMatrix = classifier.predictProbability(inputVector, 1);
-            const churnProbability = predictionProbaMatrix.get(0, 0) || 0;
+
+            let churnProbability = 0;
+            if (modelArtifact.algorithm === 'python_gbdt') {
+                const result = await runPythonScript('predict', {
+                    model_json: modelArtifact.modelJson,
+                    X: inputVector
+                });
+                churnProbability = result.probabilities[0];
+            } else if (modelArtifact.algorithm === 'gradient_boosting') {
+                const classifier = GBDTClassifier.load(JSON.parse(modelArtifact.modelJson));
+                churnProbability = classifier.predictProbability(inputVector)[0];
+            } else {
+                const classifier = RFClassifier.load(JSON.parse(modelArtifact.modelJson));
+                const predictionProbaMatrix: any = classifier.predictProbability(inputVector, 1);
+                churnProbability = typeof predictionProbaMatrix.get === 'function'
+                    ? predictionProbaMatrix.get(0, 0)
+                    : predictionProbaMatrix[0][0] || 0;
+            }
+
             const prediction = churnProbability > 0.5 ? 1 : 0;
 
             const featureContributions: Record<string, number> = {};
@@ -234,7 +360,6 @@ export function userRoutes(app: Hono) {
         const auth = await verifyAuth(c);
         if (!auth) return c.json({ success: false, error: 'Unauthorized' }, 401);
 
-        // Simplified batch predict without row limits check for now, can add back later
         const { modelId, customers } = await c.req.json<BatchPredictRequest>();
 
         const result = await query('SELECT * FROM Models WHERE id = @id', { id: modelId });
@@ -253,16 +378,35 @@ export function userRoutes(app: Hono) {
             performance: JSON.parse(row.performance),
             modelJson: row.model_json,
             encodingMap: JSON.parse(row.encoding_map),
-            featureImportance: JSON.parse(row.feature_importance)
+            featureImportance: JSON.parse(row.feature_importance),
+            algorithm: row.algorithm || 'random_forest'
         };
 
-        const modelData = JSON.parse(modelArtifact.modelJson);
-        const classifier = RFClassifier.load(modelData);
         const inputMatrix = customers.map(customer => preprocessCustomer(customer, modelArtifact));
-        const predictionProbaMatrix = classifier.predictProbability(inputMatrix, 1);
+
+        let probabilities: number[] = [];
+        if (modelArtifact.algorithm === 'python_gbdt') {
+            const result = await runPythonScript('predict', {
+                model_json: modelArtifact.modelJson,
+                X: inputMatrix
+            });
+            probabilities = result.probabilities;
+        } else if (modelArtifact.algorithm === 'gradient_boosting') {
+            const classifier = GBDTClassifier.load(JSON.parse(modelArtifact.modelJson));
+            probabilities = classifier.predictProbability(inputMatrix);
+        } else {
+            const classifier = RFClassifier.load(JSON.parse(modelArtifact.modelJson));
+            const predictionProbaMatrix: any = classifier.predictProbability(inputMatrix, 1);
+            for (let i = 0; i < customers.length; i++) {
+                const prob = typeof predictionProbaMatrix.get === 'function'
+                    ? predictionProbaMatrix.get(i, 0)
+                    : predictionProbaMatrix[i][0] || 0;
+                probabilities.push(prob);
+            }
+        }
 
         const predictions = customers.map((customer, i) => {
-            const churnProbability = predictionProbaMatrix.get(i, 0) || 0;
+            const churnProbability = probabilities[i];
             const prediction = churnProbability > 0.5 ? 1 : 0;
             const featureContributions: Record<string, number> = {};
             modelArtifact.features.forEach((f, j) => {

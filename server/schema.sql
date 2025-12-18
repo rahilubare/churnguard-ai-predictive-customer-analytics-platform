@@ -38,5 +38,6 @@ CREATE TABLE Models (
     encoding_map NVARCHAR(MAX), -- JSON string
     feature_importance NVARCHAR(MAX), -- JSON string
     model_json NVARCHAR(MAX), -- Large JSON string
+    algorithm NVARCHAR(50) DEFAULT 'random_forest',
     FOREIGN KEY (org_id) REFERENCES Orgs(id)
 );

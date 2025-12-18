@@ -1,4 +1,9 @@
-
 # Bootstrap marker
 .bootstrap-complete
 node_modules
+.env
+.wrangler
+dist
+build
+*.sqlite
+*.sqlite-journal

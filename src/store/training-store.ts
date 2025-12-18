@@ -16,9 +16,10 @@ interface TrainingState {
     modelJson: string;
     encodingMap: Record<string, Record<string, number>>;
   } | null;
+  algorithm: string;
 }
 interface TrainingActions {
-  setConfig: (target: string, features: string[]) => void;
+  setConfig: (target: string, features: string[], algorithm?: string) => void;
   startTraining: () => void;
   setTrainingState: (
     partialState: Partial<Omit<TrainingState, 'targetVariable' | 'selectedFeatures'>>
@@ -35,14 +36,16 @@ const initialState: TrainingState = {
   metrics: null,
   featureImportance: null,
   trainedModel: null,
+  algorithm: 'random_forest',
 };
 export const useTrainingStore = create<TrainingState & TrainingActions>()(
   immer((set, get) => ({
     ...initialState,
-    setConfig: (target, features) => {
+    setConfig: (target, features, algorithm = 'random_forest') => {
       set((state) => {
         state.targetVariable = target;
         state.selectedFeatures = features;
+        state.algorithm = algorithm;
         state.status = 'configuring';
         state.metrics = null;
         state.featureImportance = null;

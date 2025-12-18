@@ -68,6 +68,7 @@ export interface ModelMetadata {
   performance: ModelMetrics;
   encodingMap: Record<string, Record<string, number>>; // For categorical features
   featureImportance?: FeatureImportance;
+  algorithm?: string;
 }
 // This will store the serialized model from ml-random-forest
 export interface ModelArtifact extends ModelMetadata {

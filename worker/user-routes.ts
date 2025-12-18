@@ -6,6 +6,8 @@ import { ok, bad, notFound, isStr } from './core-utils';
 import type { ModelArtifact, PredictionResult, BatchPredictRequest, PredictionBatchResult, AuthResponse, User, OrgState, Role } from "@shared/types";
 import { RandomForestClassifier as RFClassifier } from 'ml-random-forest';
 import { Matrix } from 'ml-matrix';
+import { GBDTClassifier } from "../shared/gbdt";
+
 // --- AUTH UTILITIES ---
 async function hashPassword(password: string, salt: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -13,6 +15,7 @@ async function hashPassword(password: string, salt: string): Promise<string> {
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
+
 async function verifyAuth(c: Context<{ Bindings: Env }>): Promise<{ userId: string, orgId: string } | null> {
   const authHeader = c.req.header('Authorization');
   const token = authHeader?.replace('Bearer ', '');
@@ -30,18 +33,20 @@ async function verifyAuth(c: Context<{ Bindings: Env }>): Promise<{ userId: stri
     return null;
   }
 }
+
 // --- PREDICTION UTILITIES ---
 function preprocessCustomer(customer: Record<string, any>, modelArtifact: ModelArtifact): number[] {
   return modelArtifact.features.map(feature => {
     const value = customer[feature];
     const encoding = modelArtifact.encodingMap[feature];
     if (encoding) {
-      return encoding[String(value)] ?? 0; // Default to 0 for unseen categories
+      return encoding[String(value)] ?? 0;
     }
     const numValue = Number(value);
     return !isNaN(numValue) ? numValue : 0;
   });
 }
+
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
   // --- AUTH ROUTES ---
   app.post('/api/auth/register', async (c) => {
@@ -57,7 +62,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     await UserEntity.create(c.env, newUser);
     await OrgEntity.create(c.env, newOrg);
     const token = crypto.randomUUID();
-    const exp = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+    const exp = Date.now() + 7 * 24 * 60 * 60 * 1000;
     await SessionEntity.create(c.env, { id: token, userId, orgId, exp });
     const response: AuthResponse = {
       token,
@@ -66,6 +71,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     };
     return ok(c, response);
   });
+
   app.post('/api/auth/login', async (c) => {
     const { email, password } = await c.req.json<{ email?: string, password?: string }>();
     if (!isStr(email) || !isStr(password)) return bad(c, 'Email and password are required.');
@@ -77,7 +83,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const orgEntity = new OrgEntity(c.env, userMatch.orgId);
     const org = await orgEntity.getState();
     const token = crypto.randomUUID();
-    const exp = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+    const exp = Date.now() + 7 * 24 * 60 * 60 * 1000;
     await SessionEntity.create(c.env, { id: token, userId: userMatch.id, orgId: userMatch.orgId, exp });
     const response: AuthResponse = {
       token,
@@ -86,6 +92,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     };
     return ok(c, response);
   });
+
   app.get('/api/org/me', async (c) => {
     const authContext = await verifyAuth(c);
     if (!authContext) return c.json({ success: false, error: 'Unauthorized' }, 401);
@@ -93,7 +100,8 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (!(await orgEntity.exists())) return notFound(c, 'Organization not found');
     return ok(c, await orgEntity.getState());
   });
-  // --- SECURED MODEL ROUTES ---
+
+  // --- MODELS ---
   app.get('/api/models', async (c) => {
     const authContext = await verifyAuth(c);
     if (!authContext) return c.json({ success: false, error: 'Unauthorized' }, 401);
@@ -101,6 +109,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const orgModels = items.filter(m => m.orgId === authContext.orgId);
     return ok(c, { items: orgModels, next: null });
   });
+
   app.post('/api/models', async (c) => {
     const authContext = await verifyAuth(c);
     if (!authContext) return c.json({ success: false, error: 'Unauthorized' }, 401);
@@ -117,10 +126,20 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       modelJson: body.modelJson,
       encodingMap: body.encodingMap || {},
       featureImportance: body.featureImportance || {},
+      algorithm: body.algorithm || 'random_forest'
     };
     const created = await ModelEntity.create(c.env, newModel);
     return ok(c, created);
   });
+
+  // --- PYTHON BEYOND WORKER CAPABILITIES ---
+  app.post('/api/models/train', async (c) => {
+    return c.json({
+      success: false,
+      error: 'Python ML execution is not supported in the Edge Worker environment. Please start the Node.js server (npm run server) for Python GBDT support.'
+    }, 400);
+  });
+
   app.get('/api/models/:id', async (c) => {
     const authContext = await verifyAuth(c);
     if (!authContext) return c.json({ success: false, error: 'Unauthorized' }, 401);
@@ -131,22 +150,34 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (modelState.orgId !== authContext.orgId) return c.json({ success: false, error: 'Forbidden' }, 403);
     return ok(c, modelState);
   });
-  // --- SECURED PREDICTION ROUTES (WITH TS FIXES) ---
+
+  // --- PREDICT ---
   app.post('/api/predict', async (c) => {
     const authContext = await verifyAuth(c);
     if (!authContext) return c.json({ success: false, error: 'Unauthorized' }, 401);
     try {
       const { modelId, customer } = await c.req.json<{ modelId: string; customer: Record<string, any> }>();
-      if (!modelId || !customer) return bad(c, 'modelId and customer data are required');
       const modelEntity = new ModelEntity(c.env, modelId);
       if (!(await modelEntity.exists())) return notFound(c, 'Model not found');
       const modelArtifact = await modelEntity.getState();
       if (modelArtifact.orgId !== authContext.orgId) return c.json({ success: false, error: 'Forbidden' }, 403);
-      const modelData = JSON.parse(modelArtifact.modelJson);
-      const classifier = RFClassifier.load(modelData);
+
       const inputVector = [preprocessCustomer(customer, modelArtifact)];
-      const predictionProbaMatrix = classifier.predictProbability(inputVector, 1);
-      const churnProbability = predictionProbaMatrix.get(0, 0) || 0;
+      let churnProbability = 0;
+
+      if (modelArtifact.algorithm === 'python_gbdt') {
+        return c.json({ success: false, error: 'Python model predictions require the Node.js server.' }, 400);
+      } else if (modelArtifact.algorithm === 'gradient_boosting') {
+        const classifier = GBDTClassifier.load(JSON.parse(modelArtifact.modelJson));
+        churnProbability = classifier.predictProbability(inputVector)[0];
+      } else {
+        const classifier = RFClassifier.load(JSON.parse(modelArtifact.modelJson));
+        const predictionProbaMatrix: any = classifier.predictProbability(inputVector, 1);
+        churnProbability = typeof predictionProbaMatrix.get === 'function'
+          ? predictionProbaMatrix.get(0, 0)
+          : predictionProbaMatrix[0][0] || 0;
+      }
+
       const prediction = churnProbability > 0.5 ? 1 : 0;
       const featureContributions: Record<string, number> = {};
       modelArtifact.features.forEach((f, i) => {
@@ -154,34 +185,51 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
         const value = inputVector[0][i] || 0;
         featureContributions[f] = importance * (value - 0.5) * (prediction === 1 ? 1 : -1);
       });
-      const result: PredictionResult = { churnProbability, prediction, featureContributions };
-      return ok(c, result);
+
+      return ok(c, { churnProbability, prediction, featureContributions } as PredictionResult);
     } catch (error) {
-      console.error("Prediction error:", error);
+      console.error(error);
       return c.json({ success: false, error: 'Prediction failed' }, 500);
     }
   });
+
   app.post('/api/batch-predict', async (c) => {
     const authContext = await verifyAuth(c);
     if (!authContext) return c.json({ success: false, error: 'Unauthorized' }, 401);
     try {
       const { modelId, customers } = await c.req.json<BatchPredictRequest>();
-      if (!modelId || !customers || !Array.isArray(customers)) return bad(c, 'modelId and a customer array are required');
       const orgEntity = new OrgEntity(c.env, authContext.orgId);
       const orgState = await orgEntity.getState();
       if (customers.length > orgState.maxRows) {
-        return bad(c, `Batch size of ${customers.length} exceeds your plan's quota of ${orgState.maxRows} rows. Please upgrade or reduce the batch size.`);
+        return bad(c, `Batch size exceeds your plan's quota of ${orgState.maxRows} rows.`);
       }
+
       const modelEntity = new ModelEntity(c.env, modelId);
       if (!(await modelEntity.exists())) return notFound(c, 'Model not found');
       const modelArtifact = await modelEntity.getState();
       if (modelArtifact.orgId !== authContext.orgId) return c.json({ success: false, error: 'Forbidden' }, 403);
-      const modelData = JSON.parse(modelArtifact.modelJson);
-      const classifier = RFClassifier.load(modelData);
+
       const inputMatrix = customers.map(customer => preprocessCustomer(customer, modelArtifact));
-      const predictionProbaMatrix = classifier.predictProbability(inputMatrix, 1);
-      const predictions: PredictionResult[] = customers.map((customer, i) => {
-        const churnProbability = predictionProbaMatrix.get(i, 0) || 0;
+      let probabilities: number[] = [];
+
+      if (modelArtifact.algorithm === 'python_gbdt') {
+        return c.json({ success: false, error: 'Python model predictions require the Node.js server.' }, 400);
+      } else if (modelArtifact.algorithm === 'gradient_boosting') {
+        const classifier = GBDTClassifier.load(JSON.parse(modelArtifact.modelJson));
+        probabilities = classifier.predictProbability(inputMatrix);
+      } else {
+        const classifier = RFClassifier.load(JSON.parse(modelArtifact.modelJson));
+        const predictionProbaMatrix: any = classifier.predictProbability(inputMatrix, 1);
+        for (let i = 0; i < customers.length; i++) {
+          const prob = typeof predictionProbaMatrix.get === 'function'
+            ? predictionProbaMatrix.get(i, 0)
+            : predictionProbaMatrix[i][0] || 0;
+          probabilities.push(prob);
+        }
+      }
+
+      const predictions = customers.map((_, i) => {
+        const churnProbability = probabilities[i];
         const prediction = churnProbability > 0.5 ? 1 : 0;
         const featureContributions: Record<string, number> = {};
         modelArtifact.features.forEach((f, j) => {
@@ -191,10 +239,10 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
         });
         return { churnProbability, prediction, featureContributions };
       });
-      const result: PredictionBatchResult = { predictions, total: predictions.length };
-      return ok(c, result);
+
+      return ok(c, { predictions, total: predictions.length } as PredictionBatchResult);
     } catch (error) {
-      console.error("Batch prediction error:", error);
+      console.error(error);
       return c.json({ success: false, error: 'Batch prediction failed' }, 500);
     }
   });

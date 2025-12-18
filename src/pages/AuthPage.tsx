@@ -63,7 +63,9 @@ export function AuthPage() {
               <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center">
                 <BrainCircuit className="h-5 w-5 text-white" />
               </div>
-              <span className="text-2xl font-semibold tracking-tight">ChurnGuard AI</span>
+              <span className="text-2xl font-semibold tracking-tight">
+                ChurnGuard <span className="text-emerald-500">AI</span>
+              </span>
             </Link>
           </div>
           <TabsList className="grid w-full grid-cols-2">

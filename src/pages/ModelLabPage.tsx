@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/store/app-store";
 import { useTrainingStore } from "@/store/training-store";
-import { FlaskConical, Info, Rocket, XCircle, Loader2, ArrowRight } from "lucide-react";
+import { FlaskConical, Info, Rocket, XCircle, Loader2, ArrowRight, FileText } from "lucide-react";
+import { generateBrandedReport } from "@/lib/report-generator";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -255,19 +256,26 @@ export function ModelLabPage() {
                           </ResponsiveContainer>
                         ) : <Skeleton className="w-full h-[400px]" />}
                       </div>
-                       <div className="flex justify-end mt-4">
-                          <Button onClick={() => navigate('/predict')} className="hover:shadow-glow hover:scale-105 transition-all">
-                              Score Customers <ArrowRight className="ml-2 h-4 w-4" />
-                          </Button>
+                      <div className="flex justify-end mt-4 gap-3">
+                        <Button
+                          variant="outline"
+                          onClick={() => generateBrandedReport({ metrics, featureImportance })}
+                          className="hover:bg-primary/5"
+                        >
+                          <FileText className="mr-2 h-4 w-4" /> Export Model Report
+                        </Button>
+                        <Button onClick={() => navigate('/predict')} className="hover:shadow-glow hover:scale-105 transition-all">
+                          Score Customers <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
                 </motion.div>
               ) : isTraining && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <Skeleton className="h-[350px]" />
-                    <Skeleton className="h-[350px]" />
-                    <div className="md:col-span-2"><Skeleton className="h-[400px]" /></div>
+                  <Skeleton className="h-[350px]" />
+                  <Skeleton className="h-[350px]" />
+                  <div className="md:col-span-2"><Skeleton className="h-[400px]" /></div>
                 </div>
               )}
             </div>

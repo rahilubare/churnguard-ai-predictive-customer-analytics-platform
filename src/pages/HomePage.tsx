@@ -12,6 +12,7 @@ import { Bar, BarChart, Pie, PieChart, Cell, ResponsiveContainer, XAxis, YAxis, 
 import { motion } from "framer-motion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useTrainingStore } from "@/store/training-store";
+import { ROIDashboard } from "@/components/dashboard/ROIDashboard";
 const riskData = [
   { name: 'Low Risk', value: 70, color: '#10B981' },
   { name: 'Medium Risk', value: 20, color: '#F59E0B' },
@@ -92,7 +93,7 @@ export function HomePage() {
                     <div className="h-20 mt-2 -ml-4">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={mockSparkData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-                          <defs><linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/><stop offset="95%" stopColor="#8884d8" stopOpacity={0}/></linearGradient></defs>
+                          <defs><linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} /><stop offset="95%" stopColor="#8884d8" stopOpacity={0} /></linearGradient></defs>
                           <Area type="monotone" dataKey="value" stroke="#8884d8" fillOpacity={1} fill="url(#colorUv)" />
                         </AreaChart>
                       </ResponsiveContainer>
@@ -112,7 +113,7 @@ export function HomePage() {
                     <div className="h-20 mt-2">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={[{name: 'Churn', value: 12.3}, {name: 'Retain', value: 87.7}]} dataKey="value" startAngle={90} endAngle={-270} innerRadius="60%" outerRadius="80%" paddingAngle={5} cornerRadius={5}>
+                          <Pie data={[{ name: 'Churn', value: 12.3 }, { name: 'Retain', value: 87.7 }]} dataKey="value" startAngle={90} endAngle={-270} innerRadius="60%" outerRadius="80%" paddingAngle={5} cornerRadius={5}>
                             <Cell fill="#F43F5E" />
                             <Cell fill="#10B981" />
                           </Pie>
@@ -205,6 +206,15 @@ export function HomePage() {
               </Card>
             </motion.section>
           )}
+
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+          >
+            <ROIDashboard />
+          </motion.section>
+
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

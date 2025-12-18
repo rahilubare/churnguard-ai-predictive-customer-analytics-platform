@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileUpload } from "@/components/ui/file-upload";
 import { useAppStore } from "@/store/app-store";
-import { ArrowRight, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { ArrowRight, Loader2, AlertTriangle, RefreshCw, FileText } from "lucide-react";
+import { generateBrandedReport } from "@/lib/report-generator";
 import { useNavigate } from "react-router-dom";
 import {
   Table,
@@ -16,6 +17,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DatasetStats } from "@/components/ui/dataset-stats";
+import { DataAuditReport } from "@/components/ui/data-audit-report";
+import { auditDataset } from "@/lib/data-auditor";
 import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -30,6 +33,8 @@ export function DataStudioPage() {
   const rawFile = useAppStore(s => s.rawFile);
   const parseErrors = useAppStore(s => s.parseErrors);
   const hasWarnings = parseErrors?.length > 0;
+
+  const auditReport = dataset && datasetStats ? auditDataset(dataset, datasetStats) : null;
   const [delimiter, setDelimiter] = useState<string | undefined>(undefined);
   const handleProcess = async (manualDelimiter?: string) => {
     await processFile(manualDelimiter);
@@ -112,6 +117,7 @@ export function DataStudioPage() {
                   </AlertDescription>
                 </Alert>
               )}
+              {auditReport && <DataAuditReport report={auditReport} />}
               <DatasetStats stats={datasetStats} />
               <Card className="animate-fade-in hover:shadow-lg transition-shadow duration-200">
                 <CardHeader>
@@ -143,7 +149,16 @@ export function DataStudioPage() {
                       </TableBody>
                     </Table>
                   </ScrollArea>
-                  <div className="flex justify-end mt-6">
+                  <div className="flex justify-end mt-6 gap-3">
+                    {auditReport && (
+                      <Button
+                        variant="outline"
+                        onClick={() => generateBrandedReport({ audit: auditReport, stats: datasetStats })}
+                        className="hover:bg-primary/5"
+                      >
+                        <FileText className="mr-2 h-4 w-4" /> Export Data Audit
+                      </Button>
+                    )}
                     <Button onClick={() => navigate('/training')} className="hover:shadow-glow hover:scale-105 transition-all">
                       {hasWarnings ? 'Proceed Despite Warnings' : 'Train Model'} <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>

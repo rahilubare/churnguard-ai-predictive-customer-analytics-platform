@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parseCsv } from "@/lib/data-processor";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { ScenarioPlanner } from "@/components/prediction/ScenarioPlanner";
 export function PredictionCenterPage() {
   const [models, setModels] = useState<ModelArtifact[]>([]);
   const [selectedModel, setSelectedModel] = useState<ModelArtifact | null>(null);
@@ -168,7 +169,11 @@ export function PredictionCenterPage() {
           </Card>
           {selectedModel && (
             <Tabs defaultValue="single">
-              <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="single">Single Prediction</TabsTrigger><TabsTrigger value="batch">Batch Prediction</TabsTrigger></TabsList>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="single">Single Prediction</TabsTrigger>
+                <TabsTrigger value="batch">Batch Prediction</TabsTrigger>
+                <TabsTrigger value="scenario">Scenario Planner</TabsTrigger>
+              </TabsList>
               <TabsContent value="single">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
                   <Card className="hover:shadow-lg transition-shadow duration-200">
@@ -276,6 +281,11 @@ export function PredictionCenterPage() {
                     )}
                   </CardContent>
                 </Card>
+              </TabsContent>
+              <TabsContent value="scenario">
+                <div className="mt-6">
+                  <ScenarioPlanner selectedModel={selectedModel} />
+                </div>
               </TabsContent>
             </Tabs>
           )}

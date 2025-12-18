@@ -40,11 +40,9 @@ export function AppSidebar(): JSX.Element {
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center gap-2.5 px-2 py-1">
-          <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center">
-            <BrainCircuit className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-lg font-semibold tracking-tight">
+        <div className="flex items-center gap-3 px-3 py-4">
+          <img src="/favicon.png?v=2" alt="ChurnGuard Logo" className="h-8 w-8 object-contain" />
+          <span className="text-lg font-bold tracking-tight text-foreground">
             ChurnGuard <span className="text-emerald-500">AI</span>
           </span>
         </div>

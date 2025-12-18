@@ -50,15 +50,12 @@ export function StatusBar({ className }: { className?: string }) {
   return (
     <Card className={cn("w-full p-2 shadow-sm backdrop-blur-lg bg-card/80", className)}>
       <div className="flex items-center justify-between gap-4 text-xs sm:text-sm">
-        <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
+        <div className="flex items-center gap-4 flex-shrink-0">
           {org ? (
             <div className="flex items-center gap-2 flex-shrink-0">
-              <Avatar className="h-6 w-6 hidden sm:flex">
-                <AvatarFallback>{org.name.charAt(0)}</AvatarFallback>
-              </Avatar>
-              <Building className="h-4 w-4 sm:hidden text-muted-foreground" />
+              <img src="/favicon.png?v=2" alt="Logo" className="h-6 w-6 object-contain" />
               <span className="font-semibold truncate hidden md:inline">{org.name}</span>
-              <Badge variant="secondary" className="capitalize">{org.subTier}</Badge>
+              <Badge variant="secondary" className="capitalize text-[10px] h-4 px-1.5">{org.subTier}</Badge>
             </div>
           ) : <Skeleton className="h-6 w-32" />}
         </div>
@@ -85,8 +82,8 @@ export function StatusBar({ className }: { className?: string }) {
                 <AreaChart data={mockChurnData}>
                   <defs>
                     <linearGradient id="churnGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <Area type="monotone" dataKey="value" stroke="hsl(var(--destructive))" fill="url(#churnGradient)" strokeWidth={2} />

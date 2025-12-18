@@ -5,6 +5,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { useAuthStore } from "@/store/auth-store";
 import { Loader2 } from "lucide-react";
 import { StatusBar } from "../ui/status-bar";
+import { cn } from "@/lib/utils";
 type AppLayoutProps = {
   children: React.ReactNode;
   container?: boolean;
@@ -30,18 +31,18 @@ export function AppLayout({ children, container = false, className, contentClass
     );
   }
   if (!isAuthenticated) {
-    return <AuthGuard><div/></AuthGuard>;
+    return <AuthGuard><div /></AuthGuard>;
   }
   return (
     <AuthGuard>
       <SidebarProvider defaultOpen={false}>
         <AppSidebar />
-        <SidebarInset className={className}>
-          <div className="absolute left-2 top-2 z-20">
-            <SidebarTrigger />
-          </div>
-          <StatusBar className="sticky top-2 z-10 mx-2 sm:mx-4" />
-          <main className="flex-1">
+        <SidebarInset className={cn("flex flex-col", className)}>
+          <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 px-4 border-b bg-background/80 backdrop-blur-md">
+            <SidebarTrigger className="-ml-1" />
+            <StatusBar className="flex-1 shadow-none border-none bg-transparent" />
+          </header>
+          <main className="flex-1 py-6">
             {container ? (
               <div className={"max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" + (contentClassName ? ` ${contentClassName}` : "")}>{children}</div>
             ) : (

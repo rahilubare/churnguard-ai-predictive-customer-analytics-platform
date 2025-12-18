@@ -59,11 +59,9 @@ export function AuthPage() {
       >
         <Tabs defaultValue="login" className="w-[400px]">
           <div className="flex justify-center mb-6">
-            <Link to="/" className="flex items-center gap-2.5">
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center">
-                <BrainCircuit className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-2xl font-semibold tracking-tight">
+            <Link to="/" className="flex items-center gap-3">
+              <img src="/favicon.png?v=2" alt="ChurnGuard Logo" className="h-10 w-10 object-contain hover:scale-110 transition-transform duration-300" />
+              <span className="text-2xl font-bold tracking-tight text-foreground">
                 ChurnGuard <span className="text-emerald-500">AI</span>
               </span>
             </Link>

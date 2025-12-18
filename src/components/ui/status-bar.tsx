@@ -53,7 +53,7 @@ export function StatusBar({ className }: { className?: string }) {
         <div className="flex items-center gap-4 flex-shrink-0">
           {org ? (
             <div className="flex items-center gap-2 flex-shrink-0">
-              <img src="/favicon.png?v=2" alt="Logo" className="h-6 w-6 object-contain" />
+              <img src="/favicon.png?v=3" alt="Logo" className="h-6 w-6 object-contain" />
               <span className="font-semibold truncate hidden md:inline">{org.name}</span>
               <Badge variant="secondary" className="capitalize text-[10px] h-4 px-1.5">{org.subTier}</Badge>
             </div>

@@ -41,7 +41,7 @@ export function AppSidebar(): JSX.Element {
     <Sidebar>
       <SidebarHeader>
         <div className="flex items-center gap-3 px-3 py-4">
-          <img src="/favicon.png?v=2" alt="ChurnGuard Logo" className="h-8 w-8 object-contain" />
+          <img src="/favicon.png?v=3" alt="ChurnGuard Logo" className="h-8 w-8 object-contain" />
           <span className="text-lg font-bold tracking-tight text-foreground">
             ChurnGuard <span className="text-emerald-500">AI</span>
           </span>

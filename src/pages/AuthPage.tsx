@@ -60,7 +60,7 @@ export function AuthPage() {
         <Tabs defaultValue="login" className="w-[400px]">
           <div className="flex justify-center mb-6">
             <Link to="/" className="flex items-center gap-3">
-              <img src="/favicon.png?v=2" alt="ChurnGuard Logo" className="h-10 w-10 object-contain hover:scale-110 transition-transform duration-300" />
+              <img src="/favicon.png?v=3" alt="ChurnGuard Logo" className="h-10 w-10 object-contain hover:scale-110 transition-transform duration-300" />
               <span className="text-2xl font-bold tracking-tight text-foreground">
                 ChurnGuard <span className="text-emerald-500">AI</span>
               </span>

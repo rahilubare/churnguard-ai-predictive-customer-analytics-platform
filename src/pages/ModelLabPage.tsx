@@ -128,11 +128,11 @@ export function ModelLabPage() {
   const COLORS = ['#10B981', '#F43F5E', '#F59E0B', '#6B7280']; // TP, FN, FP, TN
   return (
     <AppLayout container>
-      <div className="py-8 md:py-10 lg:py-12">
+      <div className="py-8 md:py-12 lg:py-16">
         <div className="space-y-8 animate-fade-in">
-          <header className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight">Train & Version Models</h1>
-            <p className="text-lg text-muted-foreground">Configure, evaluate, and deploy your churn prediction classifiers.</p>
+          <header className="space-y-3 mb-8">
+            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-balance">Train & Version Models</h1>
+            <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">Configure, evaluate, and deploy your churn prediction classifiers with advanced ML algorithms.</p>
           </header>
 
           {/* Privacy & Scaling Alerts */}
@@ -156,10 +156,13 @@ export function ModelLabPage() {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
-              <Card className="hover:shadow-lg transition-shadow duration-200">
+              <Card className="hover:shadow-elevation-lg transition-all duration-300 border-t-4 border-t-primary">
                 <CardHeader>
-                  <CardTitle>1. Configure Model</CardTitle>
-                  <CardDescription>Select the target variable and the features for training.</CardDescription>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5 text-primary" />
+                    1. Configure Model
+                  </CardTitle>
+                  <CardDescription>Select the target variable and the features for training your machine learning model.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div>
@@ -194,8 +197,8 @@ export function ModelLabPage() {
                 </CardContent>
               </Card>
               <div className="flex justify-end">
-                <Button size="lg" onClick={handleTrainModel} disabled={!localTarget || localFeatures.length === 0 || isTraining} className="hover:shadow-glow hover:scale-105 transition-all">
-                  {isTraining ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Training...</> : <><FlaskConical className="mr-2 h-5 w-5" /> Train Model</>}
+                <Button size="lg" onClick={handleTrainModel} disabled={!localTarget || localFeatures.length === 0 || isTraining} variant="gradient" className="hover:shadow-glow hover:scale-105 transition-all">
+                  {isTraining ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Training in Progress...</> : <><FlaskConical className="mr-2 h-5 w-5" /> Train Machine Learning Model</>}
                 </Button>
               </div>
               {isTraining && (
@@ -216,11 +219,14 @@ export function ModelLabPage() {
               )}
               {status === 'complete' && metrics ? (
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                  <Card className="hover:shadow-lg transition-shadow duration-200">
-                    <CardHeader className="flex flex-row items-center justify-between">
+                  <Card className="hover:shadow-elevation-lg transition-all duration-300 border-t-4 border-t-success">
+                    <CardHeader className="flex flex-row items-center justify-between pb-4">
                       <div>
-                        <CardTitle>2. Evaluation Results</CardTitle>
-                        <CardDescription>Model performance on the test dataset.</CardDescription>
+                        <CardTitle className="flex items-center gap-2">
+                          <BarChartIcon className="h-5 w-5 text-success" />
+                          2. Evaluation Results
+                        </CardTitle>
+                        <CardDescription>Comprehensive model performance metrics on the test dataset.</CardDescription>
                       </div>
                       <Dialog open={isDeployDialogOpen} onOpenChange={setDeployDialogOpen}>
                         <DialogTrigger asChild>

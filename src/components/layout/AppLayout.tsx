@@ -6,6 +6,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { Loader2 } from "lucide-react";
 import { StatusBar } from "../ui/status-bar";
 import { cn } from "@/lib/utils";
+import { SkipLink } from "../ui/SkipLink";
 type AppLayoutProps = {
   children: React.ReactNode;
   container?: boolean;
@@ -35,22 +36,24 @@ export function AppLayout({ children, container = false, className, contentClass
   }
   return (
     <AuthGuard>
+      <SkipLink />
       <SidebarProvider defaultOpen={false}>
         <AppSidebar />
-        <SidebarInset className={cn("flex flex-col", className)}>
-          <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 px-4 border-b bg-background/80 backdrop-blur-md">
-            <SidebarTrigger className="-ml-1" />
+        <SidebarInset className={cn("flex flex-col min-h-screen", className)}>
+          <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center gap-2 px-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-elevation">
+            <SidebarTrigger className="-ml-1 hover:bg-accent transition-colors" />
             <StatusBar className="flex-1 shadow-none border-none bg-transparent" />
           </header>
-          <main className="flex-1 py-6">
+          <main id="main-content" className="flex-1 py-6 animate-fade-in" role="main" tabIndex="-1">
             {container ? (
-              <div className={"max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" + (contentClassName ? ` ${contentClassName}` : "")}>{children}</div>
+              <div className={"max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full" + (contentClassName ? ` ${contentClassName}` : "")}>{children}</div>
             ) : (
-              children
+              <div className="w-full">{children}</div>
             )}
           </main>
-          <footer className="border-t mt-auto pt-6 pb-8 text-center text-sm text-muted-foreground/80">
-            Built with ❤️ at ToorInfotech
+          <footer className="border-t bg-muted/30 mt-auto pt-8 pb-6 text-center text-sm text-muted-foreground/80">
+            <p>Built with <span className="text-red-500 animate-pulse">❤️</span> at ToorInfotech</p>
+            <p className="text-xs mt-1">© {new Date().getFullYear()} ChurnGuard AI. All rights reserved.</p>
           </footer>
         </SidebarInset>
       </SidebarProvider>

@@ -3,10 +3,11 @@ import { query } from "./db";
 import { v4 as uuidv4 } from 'uuid';
 import { RandomForestClassifier as RFClassifier } from 'ml-random-forest';
 import { GBDTClassifier } from "../shared/gbdt";
-import type { ModelArtifact, PredictionResult, BatchPredictRequest, PredictionBatchResult, AuthResponse, Role } from "@shared/types";
+import type { ModelArtifact, PredictionResult, BatchPredictRequest, PredictionBatchResult, AuthResponse, Role, ModelComparison } from "@shared/types";
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
+import { compareModels, validateModelArtifact } from '../src/lib/model-validator';
 
 // --- AUTH UTILITIES ---
 async function hashPassword(password: string, salt: string): Promise<string> {
@@ -15,11 +16,13 @@ async function hashPassword(password: string, salt: string): Promise<string> {
 }
 
 async function verifyAuth(c: any): Promise<{ userId: string, orgId: string } | null> {
-    const authHeader = c.req.header('Authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    if (!token) return null;
-
     try {
+        const authHeader = c.req.header('Authorization');
+        if (!authHeader) return null;
+        
+        const token = authHeader.replace('Bearer ', '').trim();
+        if (!token || token.length === 0) return null;
+
         const result = await query('SELECT user_id, org_id, exp FROM Sessions WHERE id = @token', { token });
         if (result.recordset.length === 0) return null;
 
@@ -30,8 +33,36 @@ async function verifyAuth(c: any): Promise<{ userId: string, orgId: string } | n
         }
         return { userId: session.user_id, orgId: session.org_id };
     } catch (e) {
-        console.error('Auth verification failed', e);
+        console.error('Auth verification failed:', e instanceof Error ? e.message : 'Unknown error');
         return null;
+    }
+}
+
+// --- INPUT VALIDATION ---
+function validateRequired(value: unknown, fieldName: string): string {
+    if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) {
+        throw new Error(`${fieldName} is required`);
+    }
+    return String(value);
+}
+
+function validateEmail(email: string): string {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        throw new Error('Invalid email format');
+    }
+    return email.toLowerCase();
+}
+
+function validatePassword(password: string): void {
+    if (password.length < 8) {
+        throw new Error('Password must be at least 8 characters');
+    }
+    if (!/[a-zA-Z]/.test(password)) {
+        throw new Error('Password must contain at least one letter');
+    }
+    if (!/[0-9]/.test(password)) {
+        throw new Error('Password must contain at least one number');
     }
 }
 
@@ -191,39 +222,144 @@ export function userRoutes(app: Hono) {
         const auth = await verifyAuth(c);
         if (!auth) return c.json({ success: false, error: 'Unauthorized' }, 401);
 
-        const body = await c.req.json<Partial<ModelArtifact>>();
-        if (!body.name || !body.modelJson) return c.json({ success: false, error: 'Missing fields' }, 400);
+        try {
+            const body = await c.req.json<Partial<ModelArtifact>>();
+            
+            // Validate required fields
+            if (!body.name || typeof body.name !== 'string' || body.name.trim() === '') {
+                return c.json({ success: false, error: 'Model name is required' }, 400);
+            }
+            if (!body.modelJson || typeof body.modelJson !== 'string') {
+                return c.json({ success: false, error: 'Model JSON is required' }, 400);
+            }
 
-        const newModel: ModelArtifact = {
-            id: uuidv4(),
-            orgId: auth.orgId,
-            name: body.name,
-            createdAt: Date.now(),
-            targetVariable: body.targetVariable || 'unknown',
-            features: body.features || [],
-            performance: body.performance || { accuracy: 0, precision: 0, recall: 0, f1: 0, rocAuc: 0, confusionMatrix: { truePositive: 0, trueNegative: 0, falsePositive: 0, falseNegative: 0 } },
-            modelJson: body.modelJson,
-            encodingMap: body.encodingMap || {},
-            featureImportance: body.featureImportance || {},
-            algorithm: body.algorithm || 'random_forest',
-        };
+            // Validate model JSON is parseable
+            try {
+                JSON.parse(body.modelJson);
+            } catch {
+                return c.json({ success: false, error: 'Invalid model JSON format' }, 400);
+            }
 
-        await query(`INSERT INTO Models (id, org_id, name, created_at, target_variable, features, performance, encoding_map, feature_importance, model_json, algorithm)
-     VALUES (@id, @orgId, @name, @createdAt, @targetVariable, @features, @performance, @encodingMap, @featureImportance, @modelJson, @algorithm)`, {
-            id: newModel.id,
-            orgId: newModel.orgId,
-            name: newModel.name,
-            createdAt: newModel.createdAt,
-            targetVariable: newModel.targetVariable,
-            features: JSON.stringify(newModel.features),
-            performance: JSON.stringify(newModel.performance),
-            encodingMap: JSON.stringify(newModel.encodingMap),
-            featureImportance: JSON.stringify(newModel.featureImportance),
-            modelJson: newModel.modelJson,
-            algorithm: newModel.algorithm
-        });
+            const newModel: ModelArtifact = {
+                id: uuidv4(),
+                orgId: auth.orgId,
+                name: body.name.trim(),
+                createdAt: Date.now(),
+                targetVariable: body.targetVariable || 'unknown',
+                features: Array.isArray(body.features) ? body.features : [],
+                performance: body.performance || { accuracy: 0, precision: 0, recall: 0, f1: 0, rocAuc: 0, confusionMatrix: { truePositive: 0, trueNegative: 0, falsePositive: 0, falseNegative: 0 } },
+                modelJson: body.modelJson,
+                encodingMap: body.encodingMap || {},
+                featureImportance: body.featureImportance || {},
+                algorithm: body.algorithm || 'random_forest',
+            };
 
-        return c.json({ success: true, data: newModel });
+            await query(`INSERT INTO Models (id, org_id, name, created_at, target_variable, features, performance, encoding_map, feature_importance, model_json, algorithm)
+         VALUES (@id, @orgId, @name, @createdAt, @targetVariable, @features, @performance, @encodingMap, @featureImportance, @modelJson, @algorithm)`, {
+                id: newModel.id,
+                orgId: newModel.orgId,
+                name: newModel.name,
+                createdAt: newModel.createdAt,
+                targetVariable: newModel.targetVariable,
+                features: JSON.stringify(newModel.features),
+                performance: JSON.stringify(newModel.performance),
+                encodingMap: JSON.stringify(newModel.encodingMap),
+                featureImportance: JSON.stringify(newModel.featureImportance),
+                modelJson: newModel.modelJson,
+                algorithm: newModel.algorithm
+            });
+
+            return c.json({ success: true, data: newModel });
+        } catch (error) {
+            console.error('Error creating model:', error);
+            return c.json({ success: false, error: 'Failed to create model' }, 500);
+        }
+    });
+
+    // --- DELETE MODEL ---
+    app.delete('/api/models/:id', async (c) => {
+        const auth = await verifyAuth(c);
+        if (!auth) return c.json({ success: false, error: 'Unauthorized' }, 401);
+
+        try {
+            const { id } = c.req.param();
+            
+            if (!id || typeof id !== 'string') {
+                return c.json({ success: false, error: 'Model ID is required' }, 400);
+            }
+
+            // Check if model exists and belongs to user's org
+            const result = await query('SELECT org_id FROM Models WHERE id = @id', { id });
+            if (result.recordset.length === 0) {
+                return c.json({ success: false, error: 'Model not found' }, 404);
+            }
+
+            if (result.recordset[0].org_id !== auth.orgId) {
+                return c.json({ success: false, error: 'Forbidden' }, 403);
+            }
+
+            // Delete the model
+            await query('DELETE FROM Models WHERE id = @id', { id });
+
+            return c.json({ success: true, data: { message: 'Model deleted successfully' } });
+        } catch (error) {
+            console.error('Error deleting model:', error);
+            return c.json({ success: false, error: 'Failed to delete model' }, 500);
+        }
+    });
+
+    // --- COMPARE MODELS ---
+    app.post('/api/models/compare', async (c) => {
+        const auth = await verifyAuth(c);
+        if (!auth) return c.json({ success: false, error: 'Unauthorized' }, 401);
+
+        try {
+            const { modelAId, modelBId } = await c.req.json<{ modelAId: string; modelBId: string }>();
+            
+            if (!modelAId || !modelBId) {
+                return c.json({ success: false, error: 'Both model IDs are required' }, 400);
+            }
+
+            if (modelAId === modelBId) {
+                return c.json({ success: false, error: 'Cannot compare a model with itself' }, 400);
+            }
+
+            // Fetch both models
+            const resultA = await query('SELECT * FROM Models WHERE id = @id', { id: modelAId });
+            const resultB = await query('SELECT * FROM Models WHERE id = @id', { id: modelBId });
+
+            if (resultA.recordset.length === 0 || resultB.recordset.length === 0) {
+                return c.json({ success: false, error: 'One or both models not found' }, 404);
+            }
+
+            // Verify both belong to user's org
+            if (resultA.recordset[0].org_id !== auth.orgId || resultB.recordset[0].org_id !== auth.orgId) {
+                return c.json({ success: false, error: 'Forbidden' }, 403);
+            }
+
+            const modelA: ModelArtifact = {
+                ...resultA.recordset[0],
+                features: JSON.parse(resultA.recordset[0].features),
+                performance: JSON.parse(resultA.recordset[0].performance),
+                encodingMap: JSON.parse(resultA.recordset[0].encoding_map),
+                featureImportance: JSON.parse(resultA.recordset[0].feature_importance),
+            };
+
+            const modelB: ModelArtifact = {
+                ...resultB.recordset[0],
+                features: JSON.parse(resultB.recordset[0].features),
+                performance: JSON.parse(resultB.recordset[0].performance),
+                encodingMap: JSON.parse(resultB.recordset[0].encoding_map),
+                featureImportance: JSON.parse(resultB.recordset[0].feature_importance),
+            };
+
+            const comparison = compareModels(modelA, modelB);
+
+            return c.json({ success: true, data: { modelA, modelB, comparison } });
+        } catch (error) {
+            console.error('Error comparing models:', error);
+            return c.json({ success: false, error: 'Failed to compare models' }, 500);
+        }
     });
 
     // --- NEW: SERVER-SIDE TRAINING (FOR PYTHON) ---
@@ -297,38 +433,52 @@ export function userRoutes(app: Hono) {
         const auth = await verifyAuth(c);
         if (!auth) return c.json({ success: false, error: 'Unauthorized' }, 401);
 
-        const { modelId, customer } = await c.req.json<{ modelId: string; customer: Record<string, any> }>();
-
-        const result = await query('SELECT * FROM Models WHERE id = @id', { id: modelId });
-        if (result.recordset.length === 0) return c.json({ success: false, error: 'Model not found' }, 404);
-
-        const row = result.recordset[0];
-        if (row.org_id !== auth.orgId) return c.json({ success: false, error: 'Forbidden' }, 403);
-
-        const modelArtifact: ModelArtifact = {
-            id: row.id,
-            orgId: row.org_id,
-            name: row.name,
-            createdAt: Number(row.created_at),
-            targetVariable: row.target_variable,
-            features: JSON.parse(row.features),
-            performance: JSON.parse(row.performance),
-            modelJson: row.model_json,
-            encodingMap: JSON.parse(row.encoding_map),
-            featureImportance: JSON.parse(row.feature_importance),
-            algorithm: row.algorithm || 'random_forest'
-        };
-
         try {
+            const body = await c.req.json<{ modelId?: string; customer?: Record<string, any> }>();
+            
+            // Validate inputs
+            if (!body.modelId || typeof body.modelId !== 'string') {
+                return c.json({ success: false, error: 'Model ID is required' }, 400);
+            }
+            if (!body.customer || typeof body.customer !== 'object') {
+                return c.json({ success: false, error: 'Customer data is required' }, 400);
+            }
+
+            const { modelId, customer } = body;
+
+            const result = await query('SELECT * FROM Models WHERE id = @id', { id: modelId });
+            if (result.recordset.length === 0) {
+                return c.json({ success: false, error: 'Model not found' }, 404);
+            }
+
+            const row = result.recordset[0];
+            if (row.org_id !== auth.orgId) {
+                return c.json({ success: false, error: 'Forbidden' }, 403);
+            }
+
+            const modelArtifact: ModelArtifact = {
+                id: row.id,
+                orgId: row.org_id,
+                name: row.name,
+                createdAt: Number(row.created_at),
+                targetVariable: row.target_variable,
+                features: JSON.parse(row.features),
+                performance: JSON.parse(row.performance),
+                modelJson: row.model_json,
+                encodingMap: JSON.parse(row.encoding_map),
+                featureImportance: JSON.parse(row.feature_importance),
+                algorithm: row.algorithm || 'random_forest'
+            };
+
             const inputVector = [preprocessCustomer(customer, modelArtifact)];
 
             let churnProbability = 0;
             if (modelArtifact.algorithm === 'python_gbdt') {
-                const result = await runPythonScript('predict', {
+                const pyResult = await runPythonScript('predict', {
                     model_json: modelArtifact.modelJson,
                     X: inputVector
                 });
-                churnProbability = result.probabilities[0];
+                churnProbability = pyResult.probabilities[0];
             } else if (modelArtifact.algorithm === 'gradient_boosting') {
                 const classifier = GBDTClassifier.load(JSON.parse(modelArtifact.modelJson));
                 churnProbability = classifier.predictProbability(inputVector)[0];
@@ -339,6 +489,9 @@ export function userRoutes(app: Hono) {
                     ? predictionProbaMatrix.get(0, 0)
                     : predictionProbaMatrix[0][0] || 0;
             }
+
+            // Ensure probability is in valid range
+            churnProbability = Math.max(0, Math.min(1, churnProbability));
 
             const prediction = churnProbability > 0.5 ? 1 : 0;
 
@@ -351,8 +504,11 @@ export function userRoutes(app: Hono) {
 
             return c.json({ success: true, data: { churnProbability, prediction, featureContributions } });
         } catch (e) {
-            console.error(e);
-            return c.json({ success: false, error: 'Prediction failed' }, 500);
+            console.error('Prediction error:', e);
+            return c.json({ 
+                success: false, 
+                error: e instanceof Error ? e.message : 'Prediction failed' 
+            }, 500);
         }
     });
 
@@ -360,63 +516,90 @@ export function userRoutes(app: Hono) {
         const auth = await verifyAuth(c);
         if (!auth) return c.json({ success: false, error: 'Unauthorized' }, 401);
 
-        const { modelId, customers } = await c.req.json<BatchPredictRequest>();
-
-        const result = await query('SELECT * FROM Models WHERE id = @id', { id: modelId });
-        if (result.recordset.length === 0) return c.json({ success: false, error: 'Model not found' }, 404);
-
-        const row = result.recordset[0];
-        if (row.org_id !== auth.orgId) return c.json({ success: false, error: 'Forbidden' }, 403);
-
-        const modelArtifact: ModelArtifact = {
-            id: row.id,
-            orgId: row.org_id,
-            name: row.name,
-            createdAt: Number(row.created_at),
-            targetVariable: row.target_variable,
-            features: JSON.parse(row.features),
-            performance: JSON.parse(row.performance),
-            modelJson: row.model_json,
-            encodingMap: JSON.parse(row.encoding_map),
-            featureImportance: JSON.parse(row.feature_importance),
-            algorithm: row.algorithm || 'random_forest'
-        };
-
-        const inputMatrix = customers.map(customer => preprocessCustomer(customer, modelArtifact));
-
-        let probabilities: number[] = [];
-        if (modelArtifact.algorithm === 'python_gbdt') {
-            const result = await runPythonScript('predict', {
-                model_json: modelArtifact.modelJson,
-                X: inputMatrix
-            });
-            probabilities = result.probabilities;
-        } else if (modelArtifact.algorithm === 'gradient_boosting') {
-            const classifier = GBDTClassifier.load(JSON.parse(modelArtifact.modelJson));
-            probabilities = classifier.predictProbability(inputMatrix);
-        } else {
-            const classifier = RFClassifier.load(JSON.parse(modelArtifact.modelJson));
-            const predictionProbaMatrix: any = classifier.predictProbability(inputMatrix, 1);
-            for (let i = 0; i < customers.length; i++) {
-                const prob = typeof predictionProbaMatrix.get === 'function'
-                    ? predictionProbaMatrix.get(i, 0)
-                    : predictionProbaMatrix[i][0] || 0;
-                probabilities.push(prob);
+        try {
+            const body = await c.req.json<BatchPredictRequest>();
+            
+            // Validate inputs
+            if (!body.modelId || typeof body.modelId !== 'string') {
+                return c.json({ success: false, error: 'Model ID is required' }, 400);
             }
-        }
+            if (!Array.isArray(body.customers) || body.customers.length === 0) {
+                return c.json({ success: false, error: 'Customers array is required and must not be empty' }, 400);
+            }
+            
+            // Limit batch size
+            if (body.customers.length > 10000) {
+                return c.json({ success: false, error: 'Batch size exceeds maximum of 10,000 customers' }, 400);
+            }
 
-        const predictions = customers.map((customer, i) => {
-            const churnProbability = probabilities[i];
-            const prediction = churnProbability > 0.5 ? 1 : 0;
-            const featureContributions: Record<string, number> = {};
-            modelArtifact.features.forEach((f, j) => {
-                const importance = modelArtifact.featureImportance?.[f] || 0;
-                const value = inputMatrix[i][j] || 0;
-                featureContributions[f] = importance * (value - 0.5) * (prediction === 1 ? 1 : -1);
+            const { modelId, customers } = body;
+
+            const result = await query('SELECT * FROM Models WHERE id = @id', { id: modelId });
+            if (result.recordset.length === 0) {
+                return c.json({ success: false, error: 'Model not found' }, 404);
+            }
+
+            const row = result.recordset[0];
+            if (row.org_id !== auth.orgId) {
+                return c.json({ success: false, error: 'Forbidden' }, 403);
+            }
+
+            const modelArtifact: ModelArtifact = {
+                id: row.id,
+                orgId: row.org_id,
+                name: row.name,
+                createdAt: Number(row.created_at),
+                targetVariable: row.target_variable,
+                features: JSON.parse(row.features),
+                performance: JSON.parse(row.performance),
+                modelJson: row.model_json,
+                encodingMap: JSON.parse(row.encoding_map),
+                featureImportance: JSON.parse(row.feature_importance),
+                algorithm: row.algorithm || 'random_forest'
+            };
+
+            const inputMatrix = customers.map(customer => preprocessCustomer(customer, modelArtifact));
+
+            let probabilities: number[] = [];
+            if (modelArtifact.algorithm === 'python_gbdt') {
+                const pyResult = await runPythonScript('predict', {
+                    model_json: modelArtifact.modelJson,
+                    X: inputMatrix
+                });
+                probabilities = pyResult.probabilities;
+            } else if (modelArtifact.algorithm === 'gradient_boosting') {
+                const classifier = GBDTClassifier.load(JSON.parse(modelArtifact.modelJson));
+                probabilities = classifier.predictProbability(inputMatrix);
+            } else {
+                const classifier = RFClassifier.load(JSON.parse(modelArtifact.modelJson));
+                const predictionProbaMatrix: any = classifier.predictProbability(inputMatrix, 1);
+                for (let i = 0; i < customers.length; i++) {
+                    const prob = typeof predictionProbaMatrix.get === 'function'
+                        ? predictionProbaMatrix.get(i, 0)
+                        : predictionProbaMatrix[i][0] || 0;
+                    probabilities.push(prob);
+                }
+            }
+
+            const predictions = customers.map((_, i) => {
+                const churnProbability = Math.max(0, Math.min(1, probabilities[i]));
+                const prediction = churnProbability > 0.5 ? 1 : 0;
+                const featureContributions: Record<string, number> = {};
+                modelArtifact.features.forEach((f, j) => {
+                    const importance = modelArtifact.featureImportance?.[f] || 0;
+                    const value = inputMatrix[i][j] || 0;
+                    featureContributions[f] = importance * (value - 0.5) * (prediction === 1 ? 1 : -1);
+                });
+                return { churnProbability, prediction, featureContributions };
             });
-            return { churnProbability, prediction, featureContributions };
-        });
 
-        return c.json({ success: true, data: { predictions, total: predictions.length } });
+            return c.json({ success: true, data: { predictions, total: predictions.length } });
+        } catch (e) {
+            console.error('Batch prediction error:', e);
+            return c.json({ 
+                success: false, 
+                error: e instanceof Error ? e.message : 'Batch prediction failed' 
+            }, 500);
+        }
     });
 }

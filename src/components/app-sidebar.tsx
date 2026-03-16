@@ -40,11 +40,14 @@ export function AppSidebar(): JSX.Element {
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center gap-3 px-3 py-4">
-          <img src="/favicon.png?v=3" alt="ChurnGuard Logo" className="h-8 w-8 object-contain" />
-          <span className="text-lg font-bold tracking-tight text-foreground">
-            ChurnGuard <span className="text-emerald-500">AI</span>
-          </span>
+        <div className="flex items-center gap-3 px-3 py-4 mb-2">
+          <img src="/favicon.png?v=3" alt="ChurnGuard Logo" className="h-9 w-9 object-contain drop-shadow-md" />
+          <div className="flex flex-col">
+            <span className="text-xl font-bold tracking-tight text-foreground">
+              ChurnGuard <span className="text-gradient-primary">AI</span>
+            </span>
+            <span className="text-xs text-muted-foreground -mt-1">Predictive Analytics</span>
+          </div>
         </div>
         {org && (
           <div className="flex flex-col gap-1.5 px-2 pt-2 border-t mt-2">
@@ -58,34 +61,40 @@ export function AppSidebar(): JSX.Element {
           </div>
         )}
       </SidebarHeader>
-      <SidebarContent className="flex-grow">
+      <SidebarContent className="flex-grow px-2">
         <SidebarMenu>
           {navItems.map((item) => (
             <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton asChild isActive={location.pathname === item.href}>
+              <SidebarMenuButton 
+                asChild 
+                isActive={location.pathname === item.href}
+                className="transition-all duration-200 hover:shadow-md rounded-lg mb-1"
+              >
                 <a href={item.href}>
-                  <item.icon className="h-5 w-5" /> <span>{item.label}</span>
+                  <item.icon className="h-5 w-5" /> <span className="font-medium">{item.label}</span>
                 </a>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter className="p-4 space-y-4">
+      <SidebarFooter className="p-4 space-y-4 border-t bg-muted/30">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <a href="#"><Settings className="h-5 w-5" /> <span>Settings</span></a>
+            <SidebarMenuButton asChild className="hover:shadow-sm">
+              <a href="#"><Settings className="h-5 w-5" /> <span className="font-medium">Settings</span></a>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <a href="#"><LifeBuoy className="h-5 w-5" /> <span>Support</span></a>
+            <SidebarMenuButton asChild className="hover:shadow-sm">
+              <a href="#"><LifeBuoy className="h-5 w-5" /> <span className="font-medium">Support</span></a>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <SidebarMenuButton><LogOut className="h-5 w-5" /> <span>Logout</span></SidebarMenuButton>
+              <SidebarMenuButton className="hover:bg-destructive/10 hover:text-destructive transition-colors">
+                <LogOut className="h-5 w-5" /> <span className="font-medium">Logout</span>
+              </SidebarMenuButton>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>

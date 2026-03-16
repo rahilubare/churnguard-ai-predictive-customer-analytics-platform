@@ -52,19 +52,19 @@ export function HomePage() {
   }, [dataset, models, trainingStatus]);
   return (
     <AppLayout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-10 lg:py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 lg:py-16">
         <div className="space-y-12">
           <motion.section
-            className="text-center"
+            className="text-center mb-8"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <h1 className="text-5xl md:text-6xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-balance">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-balance mb-4">
               Executive Overview
             </h1>
-            <p className="mt-4 max-w-2xl mx-auto text-xl text-muted-foreground text-balance">
-              Monitor churn risks and model performance across your customer base.
+            <p className="mt-4 max-w-2xl mx-auto text-lg sm:text-xl text-muted-foreground text-balance leading-relaxed">
+              Monitor churn risks and model performance across your customer base with real-time insights.
             </p>
           </motion.section>
           {isLoading ? (
@@ -81,41 +81,43 @@ export function HomePage() {
               animate="visible"
               variants={{ visible: { transition: { staggerChildren: 0.1 } } }}
             >
-              <motion.div variants={cardVariants} className="hover:shadow-lg hover:scale-105 transition-all duration-200">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
+              <motion.div variants={cardVariants} className="group">
+                <Card className="hover:shadow-elevation-lg hover:-translate-y-1 transition-all duration-300 border-t-4 border-t-primary">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                    <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Total Customers</CardTitle>
+                    <Users className="h-5 w-5 text-primary group-hover:scale-110 transition-transform duration-200" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">45,231</div>
-                    <p className="text-xs text-muted-foreground">+20.1% from last month</p>
-                    <div className="h-20 mt-2 -ml-4">
+                    <div className="text-3xl font-bold mb-1">45,231</div>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <span className="text-success font-medium">+20.1%</span> from last month
+                    </p>
+                    <div className="h-20 mt-3 -ml-2">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={mockSparkData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-                          <defs><linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} /><stop offset="95%" stopColor="#8884d8" stopOpacity={0} /></linearGradient></defs>
-                          <Area type="monotone" dataKey="value" stroke="#8884d8" fillOpacity={1} fill="url(#colorUv)" />
+                        <AreaChart data={mockSparkData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                          <defs><linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(221.2 83.2% 53.3%)" stopOpacity={0.3} /><stop offset="95%" stopColor="hsl(221.2 83.2% 53.3%)" stopOpacity={0} /></linearGradient></defs>
+                          <Area type="monotone" dataKey="value" stroke="hsl(221.2 83.2% 53.3%)" fillOpacity={1} fill="url(#colorUv)" strokeWidth={2} />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
                   </CardContent>
                 </Card>
               </motion.div>
-              <motion.div variants={cardVariants} className="hover:shadow-lg hover:scale-105 transition-all duration-200">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Predicted Churn</CardTitle>
-                    <TrendingDown className="h-4 w-4 text-muted-foreground" />
+              <motion.div variants={cardVariants} className="group">
+                <Card className="hover:shadow-elevation-lg hover:-translate-y-1 transition-all duration-300 border-t-4 border-t-destructive">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                    <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Predicted Churn</CardTitle>
+                    <TrendingDown className="h-5 w-5 text-destructive group-hover:scale-110 transition-transform duration-200" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">12.3%</div>
+                    <div className="text-3xl font-bold mb-1">12.3%</div>
                     <p className="text-xs text-muted-foreground">Monthly churn forecast</p>
-                    <div className="h-20 mt-2">
+                    <div className="h-20 mt-3">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie data={[{ name: 'Churn', value: 12.3 }, { name: 'Retain', value: 87.7 }]} dataKey="value" startAngle={90} endAngle={-270} innerRadius="60%" outerRadius="80%" paddingAngle={5} cornerRadius={5}>
-                            <Cell fill="#F43F5E" />
-                            <Cell fill="#10B981" />
+                            <Cell fill="hsl(0 84.2% 60.2%)" />
+                            <Cell fill="hsl(142.1 76.2% 36.3%)" />
                           </Pie>
                         </PieChart>
                       </ResponsiveContainer>
@@ -123,38 +125,38 @@ export function HomePage() {
                   </CardContent>
                 </Card>
               </motion.div>
-              <motion.div variants={cardVariants} className="hover:shadow-lg hover:scale-105 transition-all duration-200">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">High-Risk Segment</CardTitle>
-                    <ShieldAlert className="h-4 w-4 text-muted-foreground" />
+              <motion.div variants={cardVariants} className="group">
+                <Card className="hover:shadow-elevation-lg hover:-translate-y-1 transition-all duration-300 border-t-4 border-t-warning">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                    <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">High-Risk Segment</CardTitle>
+                    <ShieldAlert className="h-5 w-5 text-warning group-hover:scale-110 transition-transform duration-200" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">2,350</div>
+                    <div className="text-3xl font-bold mb-1">2,350</div>
                     <p className="text-xs text-muted-foreground">Customers with &gt;75% churn prob.</p>
-                    <div className="h-20 mt-2 -ml-4">
+                    <div className="h-20 mt-3 -ml-2">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={mockBarData}>
-                          <Bar dataKey="value" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="value" fill="hsl(38 92% 56%)" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </CardContent>
                 </Card>
               </motion.div>
-              <motion.div variants={cardVariants} className="hover:shadow-lg hover:scale-105 transition-all duration-200">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Model Accuracy</CardTitle>
-                    <BarChartIcon className="h-4 w-4 text-muted-foreground" />
+              <motion.div variants={cardVariants} className="group">
+                <Card className="hover:shadow-elevation-lg hover:-translate-y-1 transition-all duration-300 border-t-4 border-t-success">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                    <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Model Accuracy</CardTitle>
+                    <BarChartIcon className="h-5 w-5 text-success group-hover:scale-110 transition-transform duration-200" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">87.2%</div>
+                    <div className="text-3xl font-bold mb-1">87.2%</div>
                     <p className="text-xs text-muted-foreground">Average across all models</p>
-                    <div className="h-20 mt-2 -ml-4">
+                    <div className="h-20 mt-3 -ml-2">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={mockLineData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-                          <Line type="monotone" dataKey="value" stroke="#10B981" strokeWidth={2} dot={false} />
+                        <LineChart data={mockLineData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                          <Line type="monotone" dataKey="value" stroke="hsl(142.1 76.2% 36.3%)" strokeWidth={3} dot={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
@@ -170,35 +172,54 @@ export function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
             >
-              <Card className="lg:col-span-3 hover:shadow-lg transition-shadow">
+              <Card className="lg:col-span-3 hover:shadow-elevation-lg transition-all duration-300">
                 <CardHeader>
-                  <CardTitle>Recent Model Performance (Accuracy)</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChartIcon className="h-5 w-5 text-primary" />
+                    Recent Model Performance (Accuracy)
+                  </CardTitle>
                   <CardDescription>Comparing the accuracy of your 5 most recent models.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={320}>
                     <BarChart data={recentModels.map(m => ({ name: m.name, accuracy: m.performance.accuracy * 100 }))}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                      <YAxis unit="%" />
-                      <Tooltip />
-                      <Bar dataKey="accuracy" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                      <YAxis unit="%" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--card))', 
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                        }} 
+                      />
+                      <Bar dataKey="accuracy" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
-              <Card className="lg:col-span-2 hover:shadow-lg transition-shadow">
+              <Card className="lg:col-span-2 hover:shadow-elevation-lg transition-all duration-300">
                 <CardHeader>
-                  <CardTitle>Global Churn Risk Distribution</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShieldAlert className="h-5 w-5 text-warning" />
+                    Global Churn Risk Distribution
+                  </CardTitle>
                   <CardDescription>A mock overview of your customer base risk.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={320}>
                     <PieChart>
-                      <Pie data={riskData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                      <Pie data={riskData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label paddingAngle={5}>
                         {riskData.map((entry) => <Cell key={`cell-${entry.name}`} fill={entry.color} />)}
                       </Pie>
-                      <Tooltip />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--card))', 
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px'
+                        }} 
+                      />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>
@@ -220,29 +241,41 @@ export function HomePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.6 }}
           >
-            <Card>
+            <Card className="hover:shadow-elevation-lg transition-all duration-300">
               <CardHeader>
-                <CardTitle>Get Started</CardTitle>
-                <CardDescription>Follow these steps to build, train, and deploy your churn prediction model.</CardDescription>
+                <CardTitle className="text-2xl">Get Started</CardTitle>
+                <CardDescription className="text-base">Follow these steps to build, train, and deploy your churn prediction model.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-3">
-                <div className="flex flex-col items-center p-6 bg-secondary rounded-lg text-center">
-                  <Database className="h-8 w-8 text-primary mb-4" />
-                  <h3 className="font-semibold mb-2">1. Data Studio</h3>
-                  <p className="text-sm text-muted-foreground mb-4">Upload and inspect your customer dataset.</p>
-                  <Button asChild className="hover:shadow-glow hover:scale-105 transition-all"><Link to="/data">Go to Data Studio <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+              <CardContent className="grid gap-6 md:grid-cols-3">
+                <div className="flex flex-col items-center p-8 bg-gradient-to-br from-secondary to-accent/50 rounded-xl text-center border border-border hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-elevation-md group">
+                  <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors">
+                    <Database className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-3">1. Data Studio</h3>
+                  <p className="text-sm text-muted-foreground mb-6 leading-relaxed">Upload and inspect your customer dataset with automated quality checks.</p>
+                  <Button asChild variant="gradient" className="hover:shadow-glow">
+                    <Link to="/data">Go to Data Studio <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                  </Button>
                 </div>
-                <div className="flex flex-col items-center p-6 bg-secondary rounded-lg text-center">
-                  <FlaskConical className="h-8 w-8 text-primary mb-4" />
-                  <h3 className="font-semibold mb-2">2. Model Lab</h3>
-                  <p className="text-sm text-muted-foreground mb-4">Train and evaluate your model in-browser.</p>
-                  <Button asChild disabled={!dataset} className="hover:shadow-glow hover:scale-105 transition-all"><Link to="/training">Go to Model Lab <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+                <div className="flex flex-col items-center p-8 bg-gradient-to-br from-secondary to-accent/50 rounded-xl text-center border border-border hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-elevation-md group">
+                  <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors">
+                    <FlaskConical className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-3">2. Model Lab</h3>
+                  <p className="text-sm text-muted-foreground mb-6 leading-relaxed">Train and evaluate your model in-browser with advanced ML algorithms.</p>
+                  <Button asChild disabled={!dataset} variant="gradient" className="hover:shadow-glow">
+                    <Link to="/training">Go to Model Lab <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                  </Button>
                 </div>
-                <div className="flex flex-col items-center p-6 bg-secondary rounded-lg text-center">
-                  <BrainCircuit className="h-8 w-8 text-primary mb-4" />
-                  <h3 className="font-semibold mb-2">3. Prediction Center</h3>
-                  <p className="text-sm text-muted-foreground mb-4">Deploy models and make live predictions.</p>
-                  <Button asChild disabled={models.length === 0} className="hover:shadow-glow hover:scale-105 transition-all"><Link to="/predict">Go to Predictions <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+                <div className="flex flex-col items-center p-8 bg-gradient-to-br from-secondary to-accent/50 rounded-xl text-center border border-border hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-elevation-md group">
+                  <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors">
+                    <BrainCircuit className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-3">3. Prediction Center</h3>
+                  <p className="text-sm text-muted-foreground mb-6 leading-relaxed">Deploy models and make live predictions for individual or batch customers.</p>
+                  <Button asChild disabled={models.length === 0} variant="gradient" className="hover:shadow-glow">
+                    <Link to="/predict">Go to Predictions <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                  </Button>
                 </div>
               </CardContent>
             </Card>

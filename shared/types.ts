@@ -92,3 +92,170 @@ export interface PredictionBatchResult {
   predictions: PredictionResult[];
   total: number;
 }
+
+// Data Source Types
+export type DataSourceType = 'file' | 'sql' | 'nosql' | 'api';
+
+export interface DatabaseConfig {
+  type: 'postgresql' | 'mysql' | 'mssql';
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  ssl?: boolean;
+}
+
+export interface NoSQLConfig {
+  type: 'mongodb';
+  uri: string;
+  database: string;
+  collection: string;
+}
+
+export interface APIConfig {
+  url: string;
+  method: 'GET' | 'POST';
+  headers?: Record<string, string>;
+  authType?: 'none' | 'bearer' | 'basic' | 'api_key';
+  authToken?: string;
+  pagination?: {
+    type: 'offset' | 'page' | 'cursor';
+    limitParam: string;
+    offsetParam?: string;
+    pageParam?: string;
+    cursorParam?: string;
+    cursorPath?: string;
+  };
+}
+
+export interface DataSource {
+  type: DataSourceType;
+  config: DatabaseConfig | NoSQLConfig | APIConfig | FileConfig;
+}
+
+export interface FileConfig {
+  file: File;
+  delimiter?: string;
+  encoding?: string;
+}
+
+// Validation Types
+export interface ValidationResult {
+  isValid: boolean;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+}
+
+export interface ValidationError {
+  code: string;
+  message: string;
+  field?: string;
+  row?: number;
+}
+
+export interface ValidationWarning {
+  code: string;
+  message: string;
+  field?: string;
+  row?: number;
+}
+
+// ML Types
+export interface CrossValidationResult {
+  meanAccuracy: number;
+  stdAccuracy: number;
+  meanPrecision: number;
+  stdPrecision: number;
+  meanRecall: number;
+  stdRecall: number;
+  meanF1: number;
+  stdF1: number;
+  meanRocAuc: number;
+  stdRocAuc: number;
+  foldResults: ModelMetrics[];
+}
+
+export interface ScaledResult {
+  scaledData: number[][];
+  scalerParams: {
+    mean?: number[];
+    std?: number[];
+    min?: number[];
+    max?: number[];
+  };
+}
+
+export interface HyperparameterConfig {
+  nEstimators?: number[];
+  maxDepth?: number[];
+  learningRate?: number[];
+  minSamplesSplit?: number[];
+  minSamplesLeaf?: number[];
+}
+
+export interface HyperparameterTuningResult {
+  bestParams: Record<string, number>;
+  bestScore: number;
+  allResults: Array<{
+    params: Record<string, number>;
+    score: number;
+  std: number;
+  }>;
+}
+
+// Feature Engineering Types
+export interface FeatureEngineeringConfig {
+  datetimeExtraction?: string[];
+  oneHotEncode?: string[];
+  targetEncode?: string[];
+  scaleMethod?: 'standard' | 'minmax' | 'none';
+  handleOutliers?: 'remove' | 'clip' | 'none';
+  outlierMethod?: 'iqr' | 'zscore';
+  outlierThreshold?: number;
+}
+
+export interface EngineeredFeatures {
+  originalFeatures: string[];
+  newFeatures: string[];
+  transformations: Record<string, string>;
+}
+
+// Error Types
+export type ErrorType = 'validation' | 'network' | 'system' | 'user' | 'model';
+
+export interface AppErrorInfo {
+  type: ErrorType;
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+  recoverable: boolean;
+  suggestedAction?: string;
+}
+
+// Model Comparison Types
+export interface ModelComparison {
+  modelA: ModelArtifact;
+  modelB: ModelArtifact;
+  metricComparison: Record<string, { modelA: number; modelB: number; difference: number }>;
+  featureImportanceDiff: Record<string, { modelA: number; modelB: number; difference: number }>;
+}
+
+// Data Quality Types
+export interface DataQualityReport {
+  overallScore: number;
+  completeness: number;
+  consistency: number;
+  validity: number;
+  uniqueness: number;
+  issues: DataQualityIssue[];
+}
+
+export interface DataQualityIssue {
+  type: 'missing' | 'duplicate' | 'outlier' | 'invalid' | 'inconsistent';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  column: string;
+  count: number;
+  percentage: number;
+  description: string;
+}

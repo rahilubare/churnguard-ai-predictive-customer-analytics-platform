@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api-client";
 import type { ModelArtifact, PredictionResult, PredictionBatchResult } from "@shared/types";
-import { Loader2, BrainCircuit, BarChartHorizontal, AlertCircle, ArrowRight } from "lucide-react";
+import { Loader2, BrainCircuit, BarChartHorizontal, AlertCircle, ArrowRight, Users, Settings } from "lucide-react";
 import { Toaster, toast } from "@/components/ui/sonner";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import { Skeleton } from "@/components/ui/skeleton";
@@ -140,11 +140,11 @@ export function PredictionCenterPage() {
   };
   return (
     <AppLayout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-10 lg:py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 lg:py-16">
         <div className="space-y-8 animate-fade-in">
-          <header className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight">Score Customers</h1>
-            <p className="text-lg text-muted-foreground">Run single or batch predictions and perform risk analysis.</p>
+          <header className="space-y-3 mb-8">
+            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-balance">Score Customers</h1>
+            <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">Run single or batch predictions and perform comprehensive risk analysis with AI-powered insights.</p>
           </header>
 
           {/* Privacy & Model Drift Alerts */}
@@ -166,8 +166,14 @@ export function PredictionCenterPage() {
               </Alert>
             )}
           </div>
-          <Card className="hover:shadow-lg transition-shadow duration-200">
-            <CardHeader><CardTitle>1. Select a Deployed Model</CardTitle></CardHeader>
+          <Card className="hover:shadow-elevation-lg transition-all duration-300 border-t-4 border-t-primary">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BrainCircuit className="h-5 w-5 text-primary" />
+                1. Select a Deployed Model
+              </CardTitle>
+              <CardDescription>Choose a trained model from your deployed models to make predictions.</CardDescription>
+            </CardHeader>
             <CardContent>
               {isLoadingModels ? <Skeleton className="h-10 w-full" /> : models.length > 0 ? (
                 <Select onValueChange={(val) => handleModelChange(val, models)} value={selectedModel?.id}>
@@ -196,8 +202,14 @@ export function PredictionCenterPage() {
               </TabsList>
               <TabsContent value="single">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
-                  <Card className="hover:shadow-lg transition-shadow duration-200">
-                    <CardHeader><CardTitle>2. Enter Customer Data</CardTitle><CardDescription>Fill in the features for the customer you want to score.</CardDescription></CardHeader>
+                  <Card className="hover:shadow-elevation-lg transition-all duration-300 border-t-4 border-t-info">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="h-5 w-5 text-info" />
+                        2. Enter Customer Data
+                      </CardTitle>
+                      <CardDescription>Fill in the features for the customer you want to score. All fields are required.</CardDescription>
+                    </CardHeader>
                     <CardContent className="space-y-4">
                       <ScrollArea className="h-[400px] pr-4">
                         <div className="space-y-4">
@@ -209,8 +221,14 @@ export function PredictionCenterPage() {
                       <Button onClick={handlePredict} disabled={isPredicting} className="w-full">{isPredicting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Predicting...</> : 'Predict Churn'}</Button>
                     </CardContent>
                   </Card>
-                  <Card className="hover:shadow-lg transition-shadow duration-200">
-                    <CardHeader><CardTitle>3. Prediction Result</CardTitle><CardDescription>The model's prediction and feature insights.</CardDescription></CardHeader>
+                  <Card className="hover:shadow-elevation-lg transition-all duration-300 border-t-4 border-t-success">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChartHorizontal className="h-5 w-5 text-success" />
+                        3. Prediction Result
+                      </CardTitle>
+                      <CardDescription>The model's prediction, churn probability, and feature contribution insights.</CardDescription>
+                    </CardHeader>
                     <CardContent className="flex flex-col items-center justify-center min-h-[500px] space-y-4">
                       {isPredicting ? <Loader2 className="h-12 w-12 animate-spin text-primary" /> : prediction ? (
                         <motion.div className="w-full space-y-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

@@ -7,6 +7,7 @@ import type { ModelArtifact, PredictionResult, BatchPredictRequest, PredictionBa
 import { RandomForestClassifier as RFClassifier } from 'ml-random-forest';
 import { Matrix } from 'ml-matrix';
 import { GBDTClassifier } from "../shared/gbdt";
+import { compareModels } from '../src/lib/model-validator';
 
 // --- AUTH UTILITIES ---
 async function hashPassword(password: string, salt: string): Promise<string> {
@@ -17,19 +18,24 @@ async function hashPassword(password: string, salt: string): Promise<string> {
 }
 
 async function verifyAuth(c: Context<{ Bindings: Env }>): Promise<{ userId: string, orgId: string } | null> {
-  const authHeader = c.req.header('Authorization');
-  const token = authHeader?.replace('Bearer ', '');
-  if (!token) return null;
   try {
+    const authHeader = c.req.header('Authorization');
+    if (!authHeader) return null;
+    
+    const token = authHeader.replace('Bearer ', '').trim();
+    if (!token || token.length === 0) return null;
+    
     const session = new SessionEntity(c.env, token);
     if (!(await session.exists())) return null;
+    
     const state = await session.getState();
     if (Date.now() > state.exp) {
       await SessionEntity.delete(c.env, token);
       return null;
     }
     return { userId: state.userId, orgId: state.orgId };
-  } catch {
+  } catch (error) {
+    console.error('Auth verification failed:', error);
     return null;
   }
 }
@@ -113,23 +119,113 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.post('/api/models', async (c) => {
     const authContext = await verifyAuth(c);
     if (!authContext) return c.json({ success: false, error: 'Unauthorized' }, 401);
-    const body = await c.req.json<Partial<ModelArtifact>>();
-    if (!body.name || !body.modelJson) return bad(c, 'Model name and modelJson are required');
-    const newModel: ModelArtifact = {
-      id: crypto.randomUUID(),
-      orgId: authContext.orgId,
-      name: body.name,
-      createdAt: Date.now(),
-      targetVariable: body.targetVariable || 'unknown',
-      features: body.features || [],
-      performance: body.performance || { accuracy: 0, precision: 0, recall: 0, f1: 0, rocAuc: 0, confusionMatrix: { truePositive: 0, trueNegative: 0, falsePositive: 0, falseNegative: 0 } },
-      modelJson: body.modelJson,
-      encodingMap: body.encodingMap || {},
-      featureImportance: body.featureImportance || {},
-      algorithm: body.algorithm || 'random_forest'
-    };
-    const created = await ModelEntity.create(c.env, newModel);
-    return ok(c, created);
+    
+    try {
+      const body = await c.req.json<Partial<ModelArtifact>>();
+      
+      // Validate required fields
+      if (!body.name || typeof body.name !== 'string' || body.name.trim() === '') {
+        return bad(c, 'Model name is required');
+      }
+      if (!body.modelJson || typeof body.modelJson !== 'string') {
+        return bad(c, 'Model JSON is required');
+      }
+      
+      // Validate model JSON is parseable
+      try {
+        JSON.parse(body.modelJson);
+      } catch {
+        return bad(c, 'Invalid model JSON format');
+      }
+      
+      const newModel: ModelArtifact = {
+        id: crypto.randomUUID(),
+        orgId: authContext.orgId,
+        name: body.name.trim(),
+        createdAt: Date.now(),
+        targetVariable: body.targetVariable || 'unknown',
+        features: Array.isArray(body.features) ? body.features : [],
+        performance: body.performance || { accuracy: 0, precision: 0, recall: 0, f1: 0, rocAuc: 0, confusionMatrix: { truePositive: 0, trueNegative: 0, falsePositive: 0, falseNegative: 0 } },
+        modelJson: body.modelJson,
+        encodingMap: body.encodingMap || {},
+        featureImportance: body.featureImportance || {},
+        algorithm: body.algorithm || 'random_forest'
+      };
+      const created = await ModelEntity.create(c.env, newModel);
+      return ok(c, created);
+    } catch (error) {
+      console.error('Error creating model:', error);
+      return c.json({ success: false, error: 'Failed to create model' }, 500);
+    }
+  });
+
+  // --- DELETE MODEL ---
+  app.delete('/api/models/:id', async (c) => {
+    const authContext = await verifyAuth(c);
+    if (!authContext) return c.json({ success: false, error: 'Unauthorized' }, 401);
+
+    try {
+      const { id } = c.req.param();
+      
+      if (!id || typeof id !== 'string') {
+        return bad(c, 'Model ID is required');
+      }
+
+      const modelEntity = new ModelEntity(c.env, id);
+      if (!(await modelEntity.exists())) {
+        return notFound(c, 'Model not found');
+      }
+
+      const model = await modelEntity.getState();
+      if (model.orgId !== authContext.orgId) {
+        return c.json({ success: false, error: 'Forbidden' }, 403);
+      }
+
+      await ModelEntity.delete(c.env, id);
+      return ok(c, { message: 'Model deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting model:', error);
+      return c.json({ success: false, error: 'Failed to delete model' }, 500);
+    }
+  });
+
+  // --- COMPARE MODELS ---
+  app.post('/api/models/compare', async (c) => {
+    const authContext = await verifyAuth(c);
+    if (!authContext) return c.json({ success: false, error: 'Unauthorized' }, 401);
+
+    try {
+      const body = await c.req.json<{ modelAId?: string; modelBId?: string }>();
+      
+      if (!body.modelAId || !body.modelBId) {
+        return bad(c, 'Both model IDs are required');
+      }
+
+      if (body.modelAId === body.modelBId) {
+        return bad(c, 'Cannot compare a model with itself');
+      }
+
+      const modelAEntity = new ModelEntity(c.env, body.modelAId);
+      const modelBEntity = new ModelEntity(c.env, body.modelBId);
+
+      if (!(await modelAEntity.exists()) || !(await modelBEntity.exists())) {
+        return notFound(c, 'One or both models not found');
+      }
+
+      const modelA = await modelAEntity.getState();
+      const modelB = await modelBEntity.getState();
+
+      if (modelA.orgId !== authContext.orgId || modelB.orgId !== authContext.orgId) {
+        return c.json({ success: false, error: 'Forbidden' }, 403);
+      }
+
+      const comparison = compareModels(modelA, modelB);
+
+      return ok(c, { modelA, modelB, comparison });
+    } catch (error) {
+      console.error('Error comparing models:', error);
+      return c.json({ success: false, error: 'Failed to compare models' }, 500);
+    }
   });
 
   // --- PYTHON BEYOND WORKER CAPABILITIES ---
@@ -155,12 +251,27 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.post('/api/predict', async (c) => {
     const authContext = await verifyAuth(c);
     if (!authContext) return c.json({ success: false, error: 'Unauthorized' }, 401);
+    
     try {
-      const { modelId, customer } = await c.req.json<{ modelId: string; customer: Record<string, any> }>();
+      const body = await c.req.json<{ modelId?: string; customer?: Record<string, any> }>();
+      
+      // Validate inputs
+      if (!body.modelId || typeof body.modelId !== 'string') {
+        return bad(c, 'Model ID is required');
+      }
+      if (!body.customer || typeof body.customer !== 'object') {
+        return bad(c, 'Customer data is required');
+      }
+
+      const { modelId, customer } = body;
+      
       const modelEntity = new ModelEntity(c.env, modelId);
       if (!(await modelEntity.exists())) return notFound(c, 'Model not found');
+      
       const modelArtifact = await modelEntity.getState();
-      if (modelArtifact.orgId !== authContext.orgId) return c.json({ success: false, error: 'Forbidden' }, 403);
+      if (modelArtifact.orgId !== authContext.orgId) {
+        return c.json({ success: false, error: 'Forbidden' }, 403);
+      }
 
       const inputVector = [preprocessCustomer(customer, modelArtifact)];
       let churnProbability = 0;
@@ -178,6 +289,9 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
           : predictionProbaMatrix[0][0] || 0;
       }
 
+      // Ensure probability is in valid range
+      churnProbability = Math.max(0, Math.min(1, churnProbability));
+
       const prediction = churnProbability > 0.5 ? 1 : 0;
       const featureContributions: Record<string, number> = {};
       modelArtifact.features.forEach((f, i) => {
@@ -188,16 +302,37 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
 
       return ok(c, { churnProbability, prediction, featureContributions } as PredictionResult);
     } catch (error) {
-      console.error(error);
-      return c.json({ success: false, error: 'Prediction failed' }, 500);
+      console.error('Prediction error:', error);
+      return c.json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Prediction failed' 
+      }, 500);
     }
   });
 
   app.post('/api/batch-predict', async (c) => {
     const authContext = await verifyAuth(c);
     if (!authContext) return c.json({ success: false, error: 'Unauthorized' }, 401);
+    
     try {
-      const { modelId, customers } = await c.req.json<BatchPredictRequest>();
+      const body = await c.req.json<BatchPredictRequest>();
+      
+      // Validate inputs
+      if (!body.modelId || typeof body.modelId !== 'string') {
+        return bad(c, 'Model ID is required');
+      }
+      if (!Array.isArray(body.customers) || body.customers.length === 0) {
+        return bad(c, 'Customers array is required and must not be empty');
+      }
+      
+      // Limit batch size
+      if (body.customers.length > 10000) {
+        return bad(c, 'Batch size exceeds maximum of 10,000 customers');
+      }
+
+      const { modelId, customers } = body;
+      
+      // Check quota
       const orgEntity = new OrgEntity(c.env, authContext.orgId);
       const orgState = await orgEntity.getState();
       if (customers.length > orgState.maxRows) {
@@ -206,8 +341,11 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
 
       const modelEntity = new ModelEntity(c.env, modelId);
       if (!(await modelEntity.exists())) return notFound(c, 'Model not found');
+      
       const modelArtifact = await modelEntity.getState();
-      if (modelArtifact.orgId !== authContext.orgId) return c.json({ success: false, error: 'Forbidden' }, 403);
+      if (modelArtifact.orgId !== authContext.orgId) {
+        return c.json({ success: false, error: 'Forbidden' }, 403);
+      }
 
       const inputMatrix = customers.map(customer => preprocessCustomer(customer, modelArtifact));
       let probabilities: number[] = [];
@@ -229,7 +367,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       }
 
       const predictions = customers.map((_, i) => {
-        const churnProbability = probabilities[i];
+        const churnProbability = Math.max(0, Math.min(1, probabilities[i]));
         const prediction = churnProbability > 0.5 ? 1 : 0;
         const featureContributions: Record<string, number> = {};
         modelArtifact.features.forEach((f, j) => {
@@ -242,8 +380,11 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
 
       return ok(c, { predictions, total: predictions.length } as PredictionBatchResult);
     } catch (error) {
-      console.error(error);
-      return c.json({ success: false, error: 'Batch prediction failed' }, 500);
+      console.error('Batch prediction error:', error);
+      return c.json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Batch prediction failed' 
+      }, 500);
     }
   });
 }

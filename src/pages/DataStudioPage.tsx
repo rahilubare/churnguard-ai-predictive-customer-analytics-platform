@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileUpload } from "@/components/ui/file-upload";
 import { useAppStore } from "@/store/app-store";
-import { ArrowRight, Loader2, AlertTriangle, RefreshCw, FileText } from "lucide-react";
+import { ArrowRight, Loader2, AlertTriangle, RefreshCw, FileText, Upload, Database } from "lucide-react";
 import { generateBrandedReport } from "@/lib/report-generator";
 import { useNavigate } from "react-router-dom";
 import {
@@ -43,12 +43,12 @@ export function DataStudioPage() {
   const showDelimiterSelector = !!error && (error.includes('Ambiguous') || error.includes('format') || error.includes('delimiter'));
   return (
     <AppLayout container>
-      <div className="py-8 md:py-10 lg:py-12">
+      <div className="py-8 md:py-12 lg:py-16">
         <div className="space-y-8 animate-fade-in">
-          <header className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight">Manage Datasets & Quality</h1>
-            <p className="text-lg text-muted-foreground">
-              Upload, validate schema, and preview your customer data before training.
+          <header className="space-y-3 mb-8">
+            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-balance">Manage Datasets & Quality</h1>
+            <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">
+              Upload, validate schema, and preview your customer data before training with automated quality checks.
             </p>
           </header>
           {error && (
@@ -84,11 +84,14 @@ export function DataStudioPage() {
               </CardContent>
             </Card>
           )}
-          <Card className="hover:shadow-lg transition-shadow duration-200">
+          <Card className="hover:shadow-elevation-lg transition-all duration-300 border-t-4 border-t-primary">
             <CardHeader>
-              <CardTitle>1. Upload Dataset</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5 text-primary" />
+                1. Upload Dataset
+              </CardTitle>
               <CardDescription>
-                Select a CSV or XLSX file containing historical customer data. Ensure it includes a column indicating churn.
+                Select a CSV or XLSX file containing historical customer data. Ensure it includes a column indicating churn status.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -119,26 +122,29 @@ export function DataStudioPage() {
               )}
               {auditReport && <DataAuditReport report={auditReport} />}
               <DatasetStats stats={datasetStats} />
-              <Card className="animate-fade-in hover:shadow-lg transition-shadow duration-200">
+              <Card className="animate-fade-in hover:shadow-elevation-lg transition-all duration-300">
                 <CardHeader>
-                  <CardTitle>Data Preview</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="h-5 w-5 text-info" />
+                    Data Preview
+                  </CardTitle>
                   <CardDescription>
-                    Showing the first {previewRows.length} of {dataset.rows.length} rows. Verify that the data is parsed correctly.
+                    Showing the first {previewRows.length.toLocaleString()} of {dataset.rows.length.toLocaleString()} rows. Verify that the data is parsed correctly.
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <ScrollArea className="h-[400px] w-full border rounded-md">
+                <CardContent className="space-y-4">
+                  <ScrollArea className="h-[400px] w-full border rounded-md shadow-inner">
                     <Table>
-                      <TableHeader className="sticky top-0 bg-background">
+                      <TableHeader className="sticky top-0 bg-background z-10">
                         <TableRow>
                           {dataset.headers.map((header) => (
-                            <TableHead key={header}>{header}</TableHead>
+                            <TableHead key={header} className="font-semibold">{header}</TableHead>
                           ))}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {previewRows.map((row, rowIndex) => (
-                          <TableRow key={rowIndex} className="hover:bg-accent">
+                          <TableRow key={rowIndex} className="hover:bg-accent/50 transition-colors">
                             {dataset.headers.map((header) => (
                               <TableCell key={`${rowIndex}-${header}`}>
                                 {String(row[header] ?? '')}

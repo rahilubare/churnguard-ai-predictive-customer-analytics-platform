@@ -208,7 +208,7 @@ export function DataStudioPage() {
                     Upload Dataset
                   </CardTitle>
                   <CardDescription>
-                    Select a CSV or XLSX file containing historical customer data. Ensure it includes a column indicating churn status.
+                    Select a CSV or XLSX file containing historical data. Ensure it includes a column indicating the outcome you want to predict.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

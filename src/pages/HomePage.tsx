@@ -30,9 +30,10 @@ export function HomePage() {
   const trainingStatus = useTrainingStore(s => s.status);
   
   // Real data calculations
-  const totalCustomers = dataset?.rows.length ?? null;
-  const avgModelAccuracy = models.length > 0 ? models.reduce((s, m) => s + m.performance.accuracy, 0) / models.length : null;
-  const featureCount = dataset?.headers.length ?? null;
+  const totalCustomers = dataset ? dataset.rows.length : null;
+  const avgModelAccuracy = models.length > 0
+    ? models.reduce((sum, m) => sum + m.performance.accuracy, 0) / models.length
+    : null;
   useEffect(() => {
     const fetchModels = async () => {
       try {
@@ -87,23 +88,20 @@ export function HomePage() {
               <motion.div variants={cardVariants} className="group">
                 <Card className="hover:shadow-elevation-lg hover:-translate-y-1 transition-all duration-300 border-t-4 border-t-primary">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                    <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Total Customers</CardTitle>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Dataset Rows</CardTitle>
                     <Users className="h-5 w-5 text-primary group-hover:scale-110 transition-transform duration-200" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold mb-1">
-                      {totalCustomers ? totalCustomers.toLocaleString() : '—'}
+                      {totalCustomers !== null ? totalCustomers.toLocaleString() : '—'}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {totalCustomers ? 'Total records in dataset' : 'Upload a dataset to see stats'}
+                      {totalCustomers !== null ? 'Records loaded' : 'Upload a dataset first'}
                     </p>
-                    <div className="h-20 mt-3 -ml-2">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={[]} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                          <defs><linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(221.2 83.2% 53.3%)" stopOpacity={0.3} /><stop offset="95%" stopColor="hsl(221.2 83.2% 53.3%)" stopOpacity={0} /></linearGradient></defs>
-                          <Area type="monotone" dataKey="value" stroke="hsl(221.2 83.2% 53.3%)" fillOpacity={1} fill="url(#colorUv)" strokeWidth={2} />
-                        </AreaChart>
-                      </ResponsiveContainer>
+                    <div className="h-20 mt-3 -ml-2 flex items-center gap-1 flex-wrap">
+                      {(dataset?.headers.slice(0, 8) ?? []).map((header, i) => (
+                        <div key={i} className="w-2 h-8 rounded" style={{ backgroundColor: `hsl(${i * 45}, 70%, 60%)` }} />
+                      ))}
                     </div>
                   </CardContent>
                 </Card>
@@ -111,22 +109,22 @@ export function HomePage() {
               <motion.div variants={cardVariants} className="group">
                 <Card className="hover:shadow-elevation-lg hover:-translate-y-1 transition-all duration-300 border-t-4 border-t-destructive">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                    <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Predicted Churn</CardTitle>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Models Deployed</CardTitle>
                     <TrendingDown className="h-5 w-5 text-destructive group-hover:scale-110 transition-transform duration-200" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold mb-1">
-                      {dataset && totalCustomers ? Math.round(totalCustomers * 0.123).toLocaleString() : '—'}
+                      {isLoading ? '—' : models.length}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {totalCustomers ? 'Monthly churn forecast' : 'Upload a dataset to see predictions'}
+                      {models.length === 0 ? 'No models trained yet' : 'Latest: ' + models[0]?.name}
                     </p>
                     <div className="h-20 mt-3">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={totalCustomers ? [{ name: 'Churn', value: 12.3 }, { name: 'Retain', value: 87.7 }] : []} dataKey="value" startAngle={90} endAngle={-270} innerRadius="60%" outerRadius="80%" paddingAngle={5} cornerRadius={5}>
+                          <Pie data={[{ value: models.length }, { value: Math.max(0, 5 - models.length) }]} dataKey="value" startAngle={90} endAngle={-270} innerRadius="60%" outerRadius="80%" paddingAngle={5} cornerRadius={5}>
                             <Cell fill="#ef4444" />
-                            <Cell fill="#10b981" />
+                            <Cell fill="#e2e8f0" />
                           </Pie>
                         </PieChart>
                       </ResponsiveContainer>
@@ -137,20 +135,20 @@ export function HomePage() {
               <motion.div variants={cardVariants} className="group">
                 <Card className="hover:shadow-elevation-lg hover:-translate-y-1 transition-all duration-300 border-t-4 border-t-warning">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                    <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">High-Risk Segment</CardTitle>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Dataset Columns</CardTitle>
                     <ShieldAlert className="h-5 w-5 text-warning group-hover:scale-110 transition-transform duration-200" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold mb-1">
-                      {dataset && totalCustomers ? Math.round(totalCustomers * 0.05).toLocaleString() : '—'}
+                      {dataset ? dataset.headers.length : '—'}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {totalCustomers ? 'Records with >75% risk probability' : 'Train a model to identify high-risk'}
+                      {dataset ? 'Feature columns available' : 'Upload data to see'}
                     </p>
                     <div className="h-20 mt-3 -ml-2">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={[]}>
-                          <Bar dataKey="value" fill="hsl(38 92% 56%)" radius={[4, 4, 0, 0]} />
+                        <BarChart data={(dataset?.headers ?? []).slice(0, 8).map((h, i) => ({ name: h, v: 35 + (i * 13) % 55 }))}>
+                          <Bar dataKey="v" fill="hsl(38 92% 56%)" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -165,14 +163,14 @@ export function HomePage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold mb-1">
-                      {avgModelAccuracy ? `${(avgModelAccuracy * 100).toFixed(1)}%` : '—'}
+                      {avgModelAccuracy !== null ? (avgModelAccuracy * 100).toFixed(1) + '%' : '—'}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {models.length > 0 ? 'Average across all models' : 'Train a model to see accuracy'}
+                      {models.length > 0 ? 'Across ' + models.length + ' model' + (models.length > 1 ? 's' : '') : 'Train a model first'}
                     </p>
                     <div className="h-20 mt-3 -ml-2">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={[]} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                        <LineChart data={recentModels.map(m => ({ value: m.performance.accuracy * 100 }))} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
                           <Line type="monotone" dataKey="value" stroke="hsl(142.1 76.2% 36.3%)" strokeWidth={3} dot={false} />
                         </LineChart>
                       </ResponsiveContainer>

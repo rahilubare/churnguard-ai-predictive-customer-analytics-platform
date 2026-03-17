@@ -8,6 +8,7 @@ import { useTrainingStore } from "@/store/training-store";
 import { FlaskConical, Info, Rocket, XCircle, Loader2, ArrowRight, FileText, ShieldCheck, AlertTriangle, ShieldAlert, Settings, BarChart as BarChartIcon } from "lucide-react";
 import { generateBrandedReport } from "@/lib/report-generator";
 import { auditDataset } from "@/lib/data-auditor";
+import { autoAnalyzeDataset } from "@/lib/data-auto-analyzer";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -50,22 +51,23 @@ export function ModelLabPage() {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => a.value - b.value);
   }, [featureImportance]);
+  
+  const isLargeDataset = dataset ? dataset.rows.length > 50000 : false;
   const auditReport = useMemo(() => {
     if (!dataset || !datasetStats) return null;
     return auditDataset(dataset, datasetStats);
   }, [dataset, datasetStats]);
   
-  const isLargeDataset = dataset ? dataset.rows.length > 50000 : false;
-  const metricsData = useMemo(() => {
-    if (!metrics) return [];
-    return [
-      { name: 'Accuracy', value: metrics.accuracy },
-      { name: 'Precision', value: metrics.precision },
-      { name: 'Recall', value: metrics.recall },
-      { name: 'F1 Score', value: metrics.f1 },
-      { name: 'ROC AUC', value: metrics.rocAuc },
-    ];
-  }, [metrics]);
+  // Auto-analyze dataset and pre-select target and features
+  const analysisResult = useMemo(() => {
+    if (!dataset || !datasetStats) return null;
+    return autoAnalyzeDataset(dataset, datasetStats);
+  }, [dataset, datasetStats]);
+  
+  // Initialize local state with auto-detected values
+  const [localTarget, setLocalTarget] = useState<string>(analysisResult?.suggestedTarget || targetVariable || '');
+  const [localAlgorithm, setLocalAlgorithm] = useState<string>('random_forest'); // Changed from 'python_gbdt' to use in-browser ML
+  const [localFeatures, setLocalFeatures] = useState<string[]>(analysisResult?.suggestedFeatures || selectedFeatures || []);
   const confusionMatrixData = useMemo(() => {
     if (!metrics) return [];
     const { truePositive, falseNegative, falsePositive, trueNegative } = metrics.confusionMatrix;
@@ -175,6 +177,12 @@ export function ModelLabPage() {
                         {dataset.headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                    {analysisResult && analysisResult.suggestedTarget === localTarget && (
+                      <div className="flex items-center gap-2 mt-2 text-xs bg-emerald-500/10 text-emerald-700 px-3 py-2 rounded-md border border-emerald-500/20">
+                        <CheckCircle className="h-3 w-3" />
+                        <span><strong>Auto-detected:</strong> {analysisResult.reasoning}</span>
+                      </div>
+                    )}
                   </div>
                   {/* Algorithm selection hidden from user */}
                   {localTarget && (
@@ -493,11 +501,29 @@ export function ModelLabPage() {
                 <CardContent className="space-y-4 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Target:</span><span className="font-medium">{localTarget || 'Not set'}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Features:</span><span className="font-medium">{localFeatures.length} selected</span></div>
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>Next Step</AlertTitle>
-                    <AlertDescription>Once configured, click "Train Model" to start. Results will appear below.</AlertDescription>
-                  </Alert>
+                  {analysisResult && (
+                    <Alert className={analysisResult.confidence >= 0.8 ? "bg-emerald-500/10 border-emerald-500/20" : analysisResult.confidence >= 0.5 ? "bg-amber-500/10 border-amber-500/20" : "bg-red-500/10 border-red-500/20"}>
+                      <Info className="h-4 w-4" />
+                      <AlertTitle>Auto-Analysis Confidence: {(analysisResult.confidence * 100).toFixed(0)}%</AlertTitle>
+                      <AlertDescription className="text-xs">
+                        {analysisResult.reasoning}
+                        {analysisResult.dataQuality.issues.length > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {analysisResult.dataQuality.issues.slice(0, 3).map((issue, i) => (
+                              <li key={i}>• {issue}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {!analysisResult && (
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertTitle>Next Step</AlertTitle>
+                      <AlertDescription>Once configured, click "Train Model" to start. Results will appear below.</AlertDescription>
+                    </Alert>
+                  )}
                 </CardContent>
               </Card>
             </div>

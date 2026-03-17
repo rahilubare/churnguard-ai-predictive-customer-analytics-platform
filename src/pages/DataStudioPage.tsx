@@ -231,10 +231,10 @@ export function DataStudioPage() {
             {/* Database Tab */}
             <TabsContent value="database" className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <Card className="hover:shadow-elevation-lg transition-all duration-300 border-t-4 border-t-blue-500">
+                <Card className="hover:shadow-elevation-lg transition-all duration-300 border-t-4 border-t-indigo-600">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Server className="h-5 w-5 text-blue-500" />
+                      <Server className="h-5 w-5 text-indigo-600" />
                       SQL Database Connection
                     </CardTitle>
                     <CardDescription>Connect to PostgreSQL, MySQL, or SQL Server.</CardDescription>

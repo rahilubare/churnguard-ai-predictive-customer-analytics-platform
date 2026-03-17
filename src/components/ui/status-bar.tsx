@@ -5,14 +5,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuthStore } from '@/store/auth-store';
 import { api } from '@/lib/api-client';
 import type { ModelArtifact } from '@shared/types';
-import { Building, GitBranch, TrendingUp, BrainCircuit } from 'lucide-react';
+import { Building, GitBranch, TrendingUp, BrainCircuit, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Skeleton } from './skeleton';
-const mockChurnData = [
-  { value: 10 }, { value: 11 }, { value: 9 }, { value: 12 }, { value: 11.5 },
-  { value: 13 }, { value: 12.8 }, { value: 12 }, { value: 12.2 }, { value: 12.5 }
-];
+// Removed mock churn data - now using real model accuracy
 export function StatusBar({ className }: { className?: string }) {
   const org = useAuthStore(s => s.org);
   const [latestModel, setLatestModel] = useState<ModelArtifact | null>(null);
@@ -73,24 +70,15 @@ export function StatusBar({ className }: { className?: string }) {
           </div>
         </div>
         <div className="hidden lg:flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium">Churn Rate:</span>
-            <Badge variant="destructive">12.5%</Badge>
-            <div className="w-20 h-6">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={mockChurnData}>
-                  <defs>
-                    <linearGradient id="churnGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <Area type="monotone" dataKey="value" stroke="hsl(var(--destructive))" fill="url(#churnGradient)" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
+          {latestModel && latestModel.performance && (
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-emerald-500" />
+              <span className="font-medium">Best Model:</span>
+              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                {(latestModel.performance.accuracy * 100).toFixed(1)}% Accuracy
+              </Badge>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </Card>

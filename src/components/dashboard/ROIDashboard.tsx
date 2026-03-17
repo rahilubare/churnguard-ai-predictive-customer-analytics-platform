@@ -52,8 +52,8 @@ export function ROIDashboard() {
     }, [customers, churnRate, ltv, retentionTarget]);
 
     const chartData = [
-        { name: "Current Revenue Loss", value: metrics.annualLoss, fill: "hsl(var(--destructive))" },
-        { name: "Projected Savings", value: metrics.savedAnnual, fill: "hsl(var(--primary))" }
+        { name: "Current Revenue Loss", value: metrics.annualLoss, fill: "#ef4444" },
+        { name: "Projected Savings", value: metrics.savedAnnual, fill: "#10b981" }
     ];
 
     const formatCurrency = (val: number) =>

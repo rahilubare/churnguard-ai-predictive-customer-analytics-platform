@@ -51,9 +51,11 @@ export function AppLayout({ children, container = false, className, contentClass
               <div className="w-full">{children}</div>
             )}
           </main>
-          <footer className="border-t bg-muted/30 mt-auto pt-8 pb-6 text-center text-sm text-muted-foreground/80">
-            <p>Built with <span className="text-red-500 animate-pulse">❤️</span> at ToorInfotech</p>
-            <p className="text-xs mt-1">© {new Date().getFullYear()} ChurnGuard AI. All rights reserved.</p>
+          <footer className="border-t bg-muted/30 mt-auto py-4 px-6 text-xs text-muted-foreground/70">
+            <div className="max-w-7xl mx-auto flex items-center justify-between">
+              <p>&copy; {new Date().getFullYear()} ChurnGuard AI. All rights reserved.</p>
+              <p className="hidden sm:block">Predictive Customer Analytics Platform</p>
+            </div>
           </footer>
         </SidebarInset>
       </SidebarProvider>

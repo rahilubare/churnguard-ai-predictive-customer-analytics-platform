@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, Database, FlaskConical, BrainCircuit, Settings, LifeBuoy, LogOut, ExternalLink } from "lucide-react";
+import { LayoutDashboard, Database, FlaskConical, BrainCircuit, Settings, LifeBuoy, LogOut, ExternalLink, ChevronRight } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -26,17 +26,21 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "./ui/button";
+import { useAppStore } from "@/store/app-store";
+import { Card, CardContent } from "./ui/card";
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/data", label: "Data Studio", icon: Database },
-  { href: "/training", label: "Model Lab", icon: FlaskConical },
-  { href: "/predict", label: "Prediction Center", icon: BrainCircuit },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, description: "Overview & ROI" },
+  { href: "/data", label: "Data Studio", icon: Database, description: "Import & validate" },
+  { href: "/training", label: "Model Lab", icon: FlaskConical, description: "Train & evaluate" },
+  { href: "/predict", label: "Prediction Center", icon: BrainCircuit, description: "Score customers" },
 ];
 export function AppSidebar(): JSX.Element {
   const location = useLocation();
   const user = useAuthStore(s => s.user);
   const org = useAuthStore(s => s.org);
   const logout = useAuthStore(s => s.logout);
+  const dataset = useAppStore(s => s.dataset);
+  const datasetStats = useAppStore(s => s.datasetStats);
   return (
     <Sidebar>
       <SidebarHeader>
@@ -68,16 +72,42 @@ export function AppSidebar(): JSX.Element {
               <SidebarMenuButton 
                 asChild 
                 isActive={location.pathname === item.href}
-                className="transition-all duration-200 hover:shadow-md rounded-lg mb-1"
+                className="transition-all duration-200 hover:shadow-md rounded-lg mb-1 group"
               >
-                <a href={item.href}>
-                  <item.icon className="h-5 w-5" /> <span className="font-medium">{item.label}</span>
+                <a href={item.href} className="flex flex-col gap-0.5 py-2">
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-3">
+                      <item.icon className="h-5 w-5" /> 
+                      <span className="font-medium">{item.label}</span>
+                    </div>
+                    {location.pathname === item.href && <ChevronRight className="h-4 w-4 text-primary" />}
+                  </div>
+                  <span className="text-xs text-muted-foreground ml-8 group-hover:text-foreground/70 transition-colors">{item.description}</span>
                 </a>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
       </SidebarContent>
+      {/* Dataset Status Indicator */}
+      {dataset && (
+        <div className="px-3 py-2">
+          <Card className="bg-emerald-500/5 border-emerald-500/20">
+            <CardContent className="p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-xs font-medium text-emerald-600">Dataset loaded</span>
+              </div>
+              <div className="text-xs text-muted-foreground pl-4">
+                {datasetStats.rowCount.toLocaleString()} rows • {datasetStats.featureCount} features
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       <SidebarFooter className="p-4 space-y-4 border-t bg-muted/30">
         <SidebarMenu>
           <SidebarMenuItem>

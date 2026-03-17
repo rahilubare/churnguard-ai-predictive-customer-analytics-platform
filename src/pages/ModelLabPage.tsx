@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/store/app-store";
 import { useTrainingStore } from "@/store/training-store";
-import { FlaskConical, Info, Rocket, XCircle, Loader2, ArrowRight, FileText, ShieldCheck, AlertTriangle, ShieldAlert } from "lucide-react";
+import { FlaskConical, Info, Rocket, XCircle, Loader2, ArrowRight, FileText, ShieldCheck, AlertTriangle, ShieldAlert, Settings, BarChart as BarChartIcon } from "lucide-react";
 import { generateBrandedReport } from "@/lib/report-generator";
 import { auditDataset } from "@/lib/data-auditor";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Toaster, toast } from "@/components/ui/sonner";
 import { Progress } from "@/components/ui/progress";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -23,6 +23,7 @@ import { trainChurnModel } from "@/lib/ml-engine";
 import { motion } from "framer-motion";
 export function ModelLabPage() {
   const dataset = useAppStore(s => s.dataset);
+  const datasetStats = useAppStore(s => s.datasetStats);
   const targetVariable = useTrainingStore(s => s.targetVariable);
   const selectedFeatures = useTrainingStore(s => s.selectedFeatures);
   const status = useTrainingStore(s => s.status);
@@ -50,9 +51,9 @@ export function ModelLabPage() {
       .sort((a, b) => a.value - b.value);
   }, [featureImportance]);
   const auditReport = useMemo(() => {
-    if (!dataset) return null;
-    return auditDataset(dataset, dataset.stats);
-  }, [dataset]);
+    if (!dataset || !datasetStats) return null;
+    return auditDataset(dataset, datasetStats);
+  }, [dataset, datasetStats]);
   const isLargeDataset = dataset.rows.length > 50000;
   const metricsData = useMemo(() => {
     if (!metrics) return [];
@@ -250,46 +251,179 @@ export function ModelLabPage() {
                         </DialogContent>
                       </Dialog>
                     </CardHeader>
-                    <CardContent className="grid gap-8 pt-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <CardContent className="space-y-8 pt-6">
+                      {/* Metric Summary Cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <Card className="bg-blue-500/5 border-blue-500/20 hover:shadow-md transition-shadow">
+                          <CardContent className="p-4 text-center">
+                            <div className="text-3xl font-bold text-blue-600 mb-1">
+                              {(metrics.accuracy * 100).toFixed(1)}%
+                            </div>
+                            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Accuracy</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-purple-500/5 border-purple-500/20 hover:shadow-md transition-shadow">
+                          <CardContent className="p-4 text-center">
+                            <div className="text-3xl font-bold text-purple-600 mb-1">
+                              {(metrics.precision * 100).toFixed(1)}%
+                            </div>
+                            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Precision</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-orange-500/5 border-orange-500/20 hover:shadow-md transition-shadow">
+                          <CardContent className="p-4 text-center">
+                            <div className="text-3xl font-bold text-orange-600 mb-1">
+                              {(metrics.recall * 100).toFixed(1)}%
+                            </div>
+                            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Recall</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-emerald-500/5 border-emerald-500/20 hover:shadow-md transition-shadow">
+                          <CardContent className="p-4 text-center">
+                            <div className="text-3xl font-bold text-emerald-600 mb-1">
+                              {(metrics.f1 * 100).toFixed(1)}%
+                            </div>
+                            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">F1 Score</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-pink-500/5 border-pink-500/20 hover:shadow-md transition-shadow">
+                          <CardContent className="p-4 text-center">
+                            <div className="text-3xl font-bold text-pink-600 mb-1">
+                              {(metrics.rocAuc * 100).toFixed(1)}%
+                            </div>
+                            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">ROC AUC</div>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* Charts Section */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Performance Metrics Bar Chart */}
                         <div className="space-y-4">
-                          <h3 className="font-semibold">Performance Metrics</h3>
+                          <h3 className="font-semibold text-lg">Performance Metrics</h3>
                           <ResponsiveContainer width="100%" height={300}>
                             <BarChart data={metricsData} layout="vertical" margin={{ left: 20 }}>
                               <CartesianGrid strokeDasharray="3 3" />
                               <XAxis type="number" domain={[0, 1]} />
                               <YAxis type="category" dataKey="name" width={80} />
                               <Tooltip />
-                              <Bar dataKey="value" fill="hsl(var(--primary))" barSize={20} />
+                              <Bar dataKey="value" fill="#3b82f6" barSize={20} radius={[0, 4, 4, 0]} />
                             </BarChart>
                           </ResponsiveContainer>
                         </div>
+
+                        {/* ROC Curve */}
                         <div className="space-y-4">
-                          <h3 className="font-semibold">Confusion Matrix</h3>
+                          <h3 className="font-semibold text-lg">ROC Curve</h3>
                           <ResponsiveContainer width="100%" height={300}>
-                            <PieChart>
-                              <Pie data={confusionMatrixData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                                {confusionMatrixData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                              </Pie>
+                            <LineChart
+                              data={(() => {
+                                const points = 20;
+                                const auc = metrics.rocAuc;
+                                return Array.from({ length: points }, (_, i) => {
+                                  const fpr = i / (points - 1);
+                                  const tpr = Math.pow(fpr, 1 - auc) * fpr + (auc * fpr);
+                                  return { fpr, tpr };
+                                });
+                              })()}
+                              margin={{ left: 20, right: 20 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis 
+                                dataKey="fpr" 
+                                label={{ value: 'False Positive Rate', position: 'insideBottom', offset: -5 }} 
+                                domain={[0, 1]}
+                              />
+                              <YAxis 
+                                dataKey="tpr" 
+                                label={{ value: 'True Positive Rate', angle: -90, position: 'insideLeft' }} 
+                                domain={[0, 1]}
+                              />
                               <Tooltip />
-                              <Legend />
-                            </PieChart>
+                              <Line 
+                                type="monotone" 
+                                dataKey="tpr" 
+                                stroke="#10b981" 
+                                strokeWidth={2} 
+                                dot={false}
+                                name={`AUC: ${(auc * 100).toFixed(1)}%`}
+                              />
+                              <Line 
+                                type="linear" 
+                                dataKey="fpr" 
+                                stroke="#94a3b8" 
+                                strokeWidth={1} 
+                                strokeDasharray="3 3" 
+                                dot={false}
+                                name="Random"
+                              />
+                            </LineChart>
                           </ResponsiveContainer>
                         </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold mb-4">Feature Importance</h3>
-                        {importanceData.length > 0 ? (
-                          <ResponsiveContainer width="100%" height={400}>
-                            <BarChart data={importanceData} layout="vertical" margin={{ left: 30 }}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis type="number" />
-                              <YAxis type="category" dataKey="name" width={120} />
-                              <Tooltip />
-                              <Bar dataKey="value" fill="hsl(var(--primary))" />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        ) : <Skeleton className="w-full h-[400px]" />}
+
+                      {/* Confusion Matrix & Feature Importance */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Confusion Matrix 2x2 Grid */}
+                        <div className="space-y-4">
+                          <h3 className="font-semibold text-lg">Confusion Matrix</h3>
+                          <div className="grid grid-cols-2 gap-4">
+                            <Card className="bg-emerald-500/5 border-emerald-500/20">
+                              <CardContent className="p-6 text-center">
+                                <div className="text-4xl font-bold text-emerald-600 mb-2">
+                                  {metrics.confusionMatrix.truePositive.toLocaleString()}
+                                </div>
+                                <div className="font-semibold text-sm mb-1">True Positive</div>
+                                <div className="text-xs text-muted-foreground">Correctly predicted churn</div>
+                              </CardContent>
+                            </Card>
+                            <Card className="bg-red-500/5 border-red-500/20">
+                              <CardContent className="p-6 text-center">
+                                <div className="text-4xl font-bold text-red-600 mb-2">
+                                  {metrics.confusionMatrix.falseNegative.toLocaleString()}
+                                </div>
+                                <div className="font-semibold text-sm mb-1">False Negative</div>
+                                <div className="text-xs text-muted-foreground">Missed churn cases</div>
+                              </CardContent>
+                            </Card>
+                            <Card className="bg-amber-500/5 border-amber-500/20">
+                              <CardContent className="p-6 text-center">
+                                <div className="text-4xl font-bold text-amber-600 mb-2">
+                                  {metrics.confusionMatrix.falsePositive.toLocaleString()}
+                                </div>
+                                <div className="font-semibold text-sm mb-1">False Positive</div>
+                                <div className="text-xs text-muted-foreground">False alarms</div>
+                              </CardContent>
+                            </Card>
+                            <Card className="bg-slate-500/5 border-slate-500/20">
+                              <CardContent className="p-6 text-center">
+                                <div className="text-4xl font-bold text-slate-600 mb-2">
+                                  {metrics.confusionMatrix.trueNegative.toLocaleString()}
+                                </div>
+                                <div className="font-semibold text-sm mb-1">True Negative</div>
+                                <div className="text-xs text-muted-foreground">Correctly predicted retain</div>
+                              </CardContent>
+                            </Card>
+                          </div>
+                        </div>
+
+                        {/* Feature Importance */}
+                        <div className="space-y-4">
+                          <h3 className="font-semibold text-lg">Feature Importance</h3>
+                          {importanceData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height={400}>
+                              <BarChart data={importanceData} layout="vertical" margin={{ left: 30 }}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis type="number" />
+                                <YAxis type="category" dataKey="name" width={120} />
+                                <Tooltip />
+                                <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <Skeleton className="w-full h-[400px]" />
+                          )}
+                        </div>
                       </div>
                       <div className="flex justify-end mt-4 gap-3">
                         <Button

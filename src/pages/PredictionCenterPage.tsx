@@ -138,6 +138,41 @@ export function PredictionCenterPage() {
     if (prob > 0.5) return <Badge variant="secondary" className="bg-orange-500 text-white">Medium Risk</Badge>;
     return <Badge className="bg-emerald-500 text-white">Low Risk</Badge>;
   };
+
+  const handleExportCSV = () => {
+    if (!batchResults) return;
+    
+    const headers = ['Customer', 'Churn Probability (%)', 'Risk Level', 'Prediction'];
+    const csvData = batchResults.map((result, index) => {
+      const riskLevel = result.churnProbability > 0.75 ? 'High' : result.churnProbability > 0.5 ? 'Medium' : 'Low';
+      const prediction = result.prediction === 1 ? 'Churn' : 'Retain';
+      return [
+        index + 1,
+        (result.churnProbability * 100).toFixed(2),
+        riskLevel,
+        prediction
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const date = new Date().toISOString().split('T')[0];
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `churn_predictions_${date}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('Results exported successfully!');
+  };
   return (
     <AppLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 lg:py-16">
@@ -313,7 +348,9 @@ export function PredictionCenterPage() {
                           </CardContent>
                         </Card>
                         <div className="lg:col-span-2 flex justify-end">
-                          <Button className="hover:shadow-glow hover:scale-105 transition-all">View Insights <ArrowRight className="ml-2 h-4 w-4" /></Button>
+                          <Button onClick={handleExportCSV} variant="gradient" className="hover:shadow-glow">
+                            Export Results CSV <ArrowRight className="ml-2 h-4 w-4" />
+                          </Button>
                         </div>
                       </motion.div>
                     )}

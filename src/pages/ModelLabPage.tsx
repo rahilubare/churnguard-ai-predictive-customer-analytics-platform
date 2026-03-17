@@ -37,7 +37,7 @@ export function ModelLabPage() {
   const deployModel = useTrainingStore(s => s.deployModel);
   const algorithm = useTrainingStore(s => s.algorithm);
   const [localTarget, setLocalTarget] = useState<string>(targetVariable ?? '');
-  const [localAlgorithm, setLocalAlgorithm] = useState<string>('python_gbdt');
+  const [localAlgorithm, setLocalAlgorithm] = useState<string>('random_forest'); // Changed from 'python_gbdt' to use in-browser ML
   const [localFeatures, setLocalFeatures] = useState<string[]>(selectedFeatures);
   const [modelName, setModelName] = useState("");
   const [isDeployDialogOpen, setDeployDialogOpen] = useState(false);

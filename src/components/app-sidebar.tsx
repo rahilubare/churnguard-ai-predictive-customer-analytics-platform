@@ -90,7 +90,7 @@ export function AppSidebar(): JSX.Element {
         </SidebarMenu>
       </SidebarContent>
       {/* Dataset Status Indicator */}
-      {dataset && (
+      {dataset && datasetStats && (
         <div className="px-3 py-2">
           <Card className="bg-emerald-500/5 border-emerald-500/20">
             <CardContent className="p-3 space-y-2">

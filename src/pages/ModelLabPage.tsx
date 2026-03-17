@@ -54,7 +54,8 @@ export function ModelLabPage() {
     if (!dataset || !datasetStats) return null;
     return auditDataset(dataset, datasetStats);
   }, [dataset, datasetStats]);
-  const isLargeDataset = dataset.rows.length > 50000;
+  
+  const isLargeDataset = dataset ? dataset.rows.length > 50000 : false;
   const metricsData = useMemo(() => {
     if (!metrics) return [];
     return [

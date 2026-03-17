@@ -21,7 +21,11 @@ import { parseCsv } from "@/lib/data-processor";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { ScenarioPlanner } from "@/components/prediction/ScenarioPlanner";
+import { useAppStore } from "@/store/app-store";
+import { getDomainTerminology, formatProbabilityLabel, formatRiskDescription } from "@/lib/domain-terminology";
 export function PredictionCenterPage() {
+  const dataset = useAppStore(s => s.dataset);
+  const terminology = getDomainTerminology(dataset);
   const [models, setModels] = useState<ModelArtifact[]>([]);
   const [selectedModel, setSelectedModel] = useState<ModelArtifact | null>(null);
   const [isLoadingModels, setIsLoadingModels] = useState(true);
@@ -134,9 +138,9 @@ export function PredictionCenterPage() {
     };
   }, [batchResults]);
   const getRiskBadge = (prob: number) => {
-    if (prob > 0.75) return <Badge variant="destructive">High Risk</Badge>;
-    if (prob > 0.5) return <Badge variant="secondary" className="bg-orange-500 text-white">Medium Risk</Badge>;
-    return <Badge className="bg-emerald-500 text-white">Low Risk</Badge>;
+    if (prob > 0.75) return <Badge variant="destructive">{formatRiskDescription(dataset, 'high')}</Badge>;
+    if (prob > 0.5) return <Badge variant="secondary" className="bg-orange-500 text-white">{formatRiskDescription(dataset, 'medium')}</Badge>;
+    return <Badge className="bg-emerald-500 text-white">{formatRiskDescription(dataset, 'low')}</Badge>;
   };
 
   const handleExportCSV = () => {
@@ -178,8 +182,8 @@ export function PredictionCenterPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 lg:py-16">
         <div className="space-y-8 animate-fade-in">
           <header className="space-y-3 mb-8">
-            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-balance">Score Customers</h1>
-            <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">Run single or batch predictions and perform comprehensive risk analysis with AI-powered insights.</p>
+            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-balance">{terminology.predictionLabel}</h1>
+            <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">Run single or batch predictions and identify {terminology.positiveOutcome.toLowerCase()} risk across your records.</p>
           </header>
 
           {/* Privacy & Model Drift Alerts */}
@@ -268,7 +272,7 @@ export function PredictionCenterPage() {
                       {isPredicting ? <Loader2 className="h-12 w-12 animate-spin text-primary" /> : prediction ? (
                         <motion.div className="w-full space-y-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                           <div className="text-center">
-                            <p className="text-muted-foreground">Churn Probability</p>
+                            <p className="text-muted-foreground">{formatProbabilityLabel(dataset)}</p>
                             <p className={cn("text-6xl font-bold", churnProbabilityPercent > 75 ? 'text-destructive' : churnProbabilityPercent > 50 ? 'text-orange-500' : 'text-emerald-500')}>{churnProbabilityPercent.toFixed(1)}%</p>
                             {getRiskBadge(prediction.churnProbability)}
                           </div>

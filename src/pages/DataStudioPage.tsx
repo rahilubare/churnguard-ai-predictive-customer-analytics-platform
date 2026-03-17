@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileUpload } from "@/components/ui/file-upload";
 import { useAppStore } from "@/store/app-store";
+import { getDomainTerminology } from "@/lib/domain-terminology";
+import { detectDatasetDomain } from "@/lib/data-processor";
+import { autoAnalyzeDataset } from "@/lib/data-auto-analyzer";
 import { ArrowRight, Loader2, AlertTriangle, RefreshCw, FileText, Upload, Database, Cloud, Server, Key, Lock, Globe, CheckCircle } from "lucide-react";
 import { generateBrandedReport } from "@/lib/report-generator";
 import { useNavigate } from "react-router-dom";
@@ -607,6 +610,30 @@ export function DataStudioPage() {
           </Tabs>
           {dataset && datasetStats && (
             <>
+              {/* Domain Detection Banner */}
+              {(() => {
+                const domainInfo = detectDatasetDomain(dataset);
+                const analysisResult = autoAnalyzeDataset(dataset, datasetStats);
+                const confidence = domainInfo.confidence;
+                const bgColor = confidence > 70 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-900' : 
+                                confidence > 40 ? 'bg-amber-500/10 border-amber-500/20 text-amber-900' : 
+                                'bg-slate-500/10 border-slate-500/20 text-slate-900';
+                
+                return (
+                  <div className={`p-4 rounded-lg border ${bgColor} mb-4 flex items-start gap-3`}>
+                    <Database className="h-5 w-5 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="font-semibold text-sm">
+                        Detected: {domainInfo.domain} ({confidence.toFixed(0)}% confidence)
+                      </div>
+                      <div className="text-xs mt-1 opacity-80">
+                        Suggested target: {analysisResult.suggestedTarget} • {dataset.rows.length.toLocaleString()} rows × {dataset.headers.length} columns
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              
               {hasWarnings && (
                 <Alert variant="default">
                   <AlertTriangle className="h-4 w-4" />

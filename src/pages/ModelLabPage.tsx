@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/store/app-store";
+import { getDomainTerminology } from "@/lib/domain-terminology";
 import { useTrainingStore } from "@/store/training-store";
 import { FlaskConical, Info, Rocket, XCircle, Loader2, ArrowRight, FileText, ShieldCheck, AlertTriangle, ShieldAlert, Settings, BarChart as BarChartIcon, CheckCircle } from "lucide-react";
 import { generateBrandedReport } from "@/lib/report-generator";
@@ -25,6 +26,7 @@ import { motion } from "framer-motion";
 export function ModelLabPage() {
   const dataset = useAppStore(s => s.dataset);
   const datasetStats = useAppStore(s => s.datasetStats);
+  const terminology = getDomainTerminology(dataset);
   const targetVariable = useTrainingStore(s => s.targetVariable);
   const selectedFeatures = useTrainingStore(s => s.selectedFeatures);
   const status = useTrainingStore(s => s.status);
@@ -145,8 +147,8 @@ export function ModelLabPage() {
       <div className="py-8 md:py-12 lg:py-16">
         <div className="space-y-8 animate-fade-in">
           <header className="space-y-3 mb-8">
-            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-balance">Train & Version Models</h1>
-            <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">Configure, evaluate, and deploy your churn prediction classifiers with advanced ML algorithms.</p>
+            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-balance">Train {terminology.modelType}</h1>
+            <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">Configure, evaluate, and deploy your {terminology.modelType.toLowerCase()} with advanced ML algorithms.</p>
           </header>
 
           {/* Privacy & Scaling Alerts */}
@@ -393,7 +395,7 @@ export function ModelLabPage() {
                                   {metrics.confusionMatrix.truePositive.toLocaleString()}
                                 </div>
                                 <div className="font-semibold text-sm mb-1">True Positive</div>
-                                <div className="text-xs text-muted-foreground">Correctly predicted churn</div>
+                                <div className="text-xs text-muted-foreground">Correctly predicted {terminology.positiveOutcome.toLowerCase()}</div>
                               </CardContent>
                             </Card>
                             <Card className="bg-red-500/5 border-red-500/20">
@@ -402,7 +404,7 @@ export function ModelLabPage() {
                                   {metrics.confusionMatrix.falseNegative.toLocaleString()}
                                 </div>
                                 <div className="font-semibold text-sm mb-1">False Negative</div>
-                                <div className="text-xs text-muted-foreground">Missed churn cases</div>
+                                <div className="text-xs text-muted-foreground">Missed {terminology.positiveOutcome.toLowerCase()} cases</div>
                               </CardContent>
                             </Card>
                             <Card className="bg-amber-500/5 border-amber-500/20">
@@ -420,7 +422,7 @@ export function ModelLabPage() {
                                   {metrics.confusionMatrix.trueNegative.toLocaleString()}
                                 </div>
                                 <div className="font-semibold text-sm mb-1">True Negative</div>
-                                <div className="text-xs text-muted-foreground">Correctly predicted retain</div>
+                                <div className="text-xs text-muted-foreground">Correctly predicted {terminology.negativeOutcome.toLowerCase()}</div>
                               </CardContent>
                             </Card>
                           </div>

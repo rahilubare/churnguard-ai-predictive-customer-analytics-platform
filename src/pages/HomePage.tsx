@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useTrainingStore } from "@/store/training-store";
 import { ROIDashboard } from "@/components/dashboard/ROIDashboard";
+import { getDomainTerminology } from "@/lib/domain-terminology";
 const riskData = [
   { name: 'Low Risk', value: 70, color: '#10B981' },
   { name: 'Medium Risk', value: 20, color: '#F59E0B' },
@@ -26,6 +27,7 @@ export function HomePage() {
   const [models, setModels] = useState<ModelArtifact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const dataset = useAppStore(s => s.dataset);
+  const terminology = getDomainTerminology(dataset);
   const datasetStats = useAppStore(s => s.datasetStats);
   const trainingStatus = useTrainingStore(s => s.status);
   
@@ -68,7 +70,7 @@ export function HomePage() {
               Executive Overview
             </h1>
             <p className="mt-4 max-w-2xl mx-auto text-lg sm:text-xl text-muted-foreground text-balance leading-relaxed">
-              Monitor churn risks and model performance across your customer base with real-time insights.
+              Monitor {terminology.targetLabel.toLowerCase()} risks and model performance across your {dataset ? 'loaded dataset' : 'customer base'} with real-time insights.
             </p>
           </motion.section>
           {isLoading ? (

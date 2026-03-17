@@ -589,27 +589,120 @@ export function prepareDataset(
 }
 
 /**
- * Infer the target column (churn indicator)
+ * Infer the target column for ANY classification domain
+ * Works for churn, fraud, attrition, medical, dropout, failure prediction, etc.
  */
 export function inferTargetColumn(dataset: Dataset): string | null {
-  const targetKeywords = ['churn', 'target', 'label', 'exited', 'retained', 'left', 'cancelled', 'canceled'];
+  // Universal target keywords across ALL domains
+  const strongTargetKeywords = [
+    'churn', 'attrition', 'exited', 'left', 'cancelled', 'canceled', 
+    'fraud', 'default', 'dropout', 'failure', 'converted', 'conversion', 
+    'outcome', 'result', 'target', 'label', 'y', 'class', 'prediction', 
+    'survived', 'purchased', 'subscribed', 'retained', 'renewed', 
+    'approved', 'diagnosed', 'churned', 'response', 'click', 'buy',
+    'cancellation', 'terminated', 'closed', 'won', 'lost'
+  ];
   
-  for (const header of dataset.headers) {
-    const lower = header.toLowerCase();
-    if (targetKeywords.some(kw => lower.includes(kw))) {
-      return header;
+  // Columns to exclude (IDs, PII, timestamps)
+  const negativeKeywords = [
+    'id', 'key', 'code', 'number', 'ref', 'reference', 'index', 
+    'created_at', 'updated_at', 'timestamp', 'date', 'time', 'uuid',
+    'email', 'phone', 'address', 'url', 'name', 'customer_id', 'user_id',
+    'ssn', 'credit_card', 'password', 'token', 'session'
+  ];
+  
+  interface ColumnScore {
+    name: string;
+    score: number;
+  }
+  
+  const columnScores: ColumnScore[] = [];
+  
+  dataset.headers.forEach(header => {
+    const lowerHeader = header.toLowerCase();
+    
+    // Skip obvious non-target columns
+    if (negativeKeywords.some(kw => lowerHeader.includes(kw))) {
+      return;
     }
+    
+    // Get unique values
+    const values = dataset.rows.map(r => r[header]).filter(v => v !== null && v !== undefined);
+    const uniqueValues = new Set(values);
+    const uniqueCount = uniqueValues.size;
+    const totalRows = values.length;
+    
+    if (uniqueCount === 0 || totalRows === 0) return;
+    
+    let score = 0;
+    
+    // STRONG INDICATOR: Name contains target keywords
+    if (strongTargetKeywords.some(kw => lowerHeader.includes(kw))) {
+      score += 100;
+    }
+    
+    // MODERATE INDICATOR: Binary column (2 unique values)
+    const isBinary = uniqueCount === 2;
+    if (isBinary) {
+      score += 50;
+      
+      // Check class balance (ideal targets have 5-50% minority class)
+      const valueCounts = new Map();
+      values.forEach(v => {
+        const key = String(v).toLowerCase();
+        valueCounts.set(key, (valueCounts.get(key) || 0) + 1);
+      });
+      
+      const counts = Array.from(valueCounts.values()).sort((a, b) => a - b);
+      if (counts.length === 2) {
+        const minorityPct = counts[0] / totalRows;
+        if (minorityPct >= 0.05 && minorityPct <= 0.5) {
+          score += 30; // Good class balance
+        } else if (minorityPct < 0.05) {
+          score -= 20; // Too imbalanced
+        }
+      }
+    }
+    
+    // POSITIVE: Low cardinality categorical (3-5 unique values)
+    if (uniqueCount >= 3 && uniqueCount <= 5 && uniqueCount < totalRows * 0.1) {
+      score += 20;
+    }
+    
+    // NEGATIVE: Too many unique values (likely not a classification target)
+    if (uniqueCount > 20) {
+      score -= 50;
+    }
+    
+    // NEGATIVE: All unique (definitely an ID or free text)
+    if (uniqueCount === totalRows) {
+      score -= 100;
+    }
+    
+    columnScores.push({ name: header, score });
+  });
+  
+  // Sort by score and return best match
+  columnScores.sort((a, b) => b.score - a.score);
+  
+  // Only return if score meets minimum threshold
+  if (columnScores.length > 0 && columnScores[0].score >= 50) {
+    return columnScores[0].name;
   }
   
   return null;
 }
 
 /**
- * Get recommended features for training
+ * Get recommended features for training - works for ANY domain
  */
 export function getRecommendedFeatures(dataset: Dataset, targetColumn: string): string[] {
   const stats = getDatasetStats(dataset);
-  const excludePatterns = ['id', 'identifier', 'name', 'email', 'phone', 'address', 'zip', 'postal'];
+  const excludePatterns = [
+    'id', 'identifier', 'name', 'email', 'phone', 'address', 'zip', 'postal',
+    'ssn', 'credit_card', 'password', 'token', 'session', 'uuid', 'guid',
+    'url', 'link', 'description', 'comment', 'note', 'text', 'remarks'
+  ];
   
   return dataset.headers.filter(header => {
     if (header === targetColumn) return false;
@@ -617,19 +710,95 @@ export function getRecommendedFeatures(dataset: Dataset, targetColumn: string): 
     const stat = stats[header];
     if (!stat) return false;
     
+    const lower = header.toLowerCase();
+    
+    // Exclude potential IDs and PII
+    if (excludePatterns.some(p => lower.includes(p))) return false;
+    
     // Exclude columns with all missing values
     if (stat.missing === stat.total) return false;
     
-    // Exclude constant columns
+    // Exclude constant columns (zero variance)
     if (stat.unique === 1) return false;
     
-    // Exclude potential ID columns
-    const lower = header.toLowerCase();
-    if (excludePatterns.some(p => lower.includes(p))) return false;
-    
-    // Exclude columns with too many unique values (likely IDs)
+    // Exclude columns with too many unique values (likely IDs or free text)
     if (stat.type === 'categorical' && stat.unique > dataset.rows.length * 0.9) return false;
+    
+    // Exclude potential email/URL columns
+    const sampleValues = dataset.rows.slice(0, 10).map(r => r[header]).filter(Boolean);
+    if (sampleValues.some(v => String(v).includes('@'))) return false; // Email
+    if (sampleValues.some(v => String(v).startsWith('http'))) return false; // URL
     
     return true;
   });
+}
+
+/**
+ * Detect the domain of a dataset based on column names and data patterns
+ */
+export function detectDatasetDomain(dataset: Dataset): { domain: string; confidence: number; reasoning: string } {
+  const headers = dataset.headers.map(h => h.toLowerCase());
+  
+  // Domain keyword patterns
+  const domainPatterns: Record<string, string[]> = {
+    'Customer Churn': [
+      'tenure', 'contract', 'monthly charges', 'payment method', 'internet service', 
+      'customer id', 'senior citizen', 'dependents', 'partner', 'phone service', 
+      'multiple lines', 'tech support', 'streaming', 'online security'
+    ],
+    'HR Attrition': [
+      'department', 'job role', 'salary', 'years at company', 'work life balance', 
+      'overtime', 'performance rating', 'business travel', 'stock option', 
+      'years since last promotion', 'environment satisfaction', 'job satisfaction'
+    ],
+    'Financial Fraud': [
+      'transaction', 'merchant', 'card type', 'location', 'device', 'ip address', 
+      'velocity', 'amount', 'currency', 'fraud', 'legit', 'class'
+    ],
+    'Healthcare / Medical': [
+      'diagnosis', 'medication', 'blood pressure', 'glucose', 'bmi', 'hospital', 
+      'admission', 'patient', 'treatment', 'symptom', 'lab result', 'cholesterol'
+    ],
+    'Sales / Marketing': [
+      'lead source', 'campaign', 'product', 'revenue', 'deal size', 'stage', 
+      'win', 'loss', 'opportunity', 'pipeline', 'conversion', 'quote'
+    ],
+    'Student Dropout': [
+      'gpa', 'attendance', 'grade', 'course', 'semester', 'scholarship', 
+      'tuition', 'enrollment', 'credit', 'graduation', 'dropout'
+    ],
+    'Equipment / IoT': [
+      'sensor', 'temperature', 'pressure', 'vibration', 'machine id', 'maintenance', 
+      'hours', 'rpm', 'failure', 'operating', 'iot', 'device'
+    ]
+  };
+  
+  // Score each domain
+  const domainScores: Array<{ domain: string; score: number; matches: string[] }> = [];
+  
+  Object.entries(domainPatterns).forEach(([domain, keywords]) => {
+    const matches = headers.filter(h => keywords.some(kw => h.includes(kw)));
+    const score = matches.length;
+    if (score > 0) {
+      domainScores.push({ domain, score, matches });
+    }
+  });
+  
+  // Sort by matches
+  domainScores.sort((a, b) => b.score - a.score);
+  
+  // Return best match
+  if (domainScores.length > 0 && domainScores[0].score >= 2) {
+    return {
+      domain: domainScores[0].domain,
+      confidence: Math.min(0.95, 0.5 + (domainScores[0].score * 0.1)),
+      reasoning: `Detected ${domainScores[0].domain} dataset based on columns: ${domainScores[0].matches.join(', ')}`
+    };
+  }
+  
+  return {
+    domain: 'General Classification',
+    confidence: 0.3,
+    reasoning: 'No specific domain pattern detected - treating as general classification problem'
+  };
 }

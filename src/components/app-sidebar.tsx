@@ -102,7 +102,7 @@ export function AppSidebar(): JSX.Element {
                 <span className="text-xs font-medium text-emerald-600">Dataset loaded</span>
               </div>
               <div className="text-xs text-muted-foreground pl-4">
-                {datasetStats.rowCount.toLocaleString()} rows • {datasetStats.featureCount} features
+                {datasetStats?.rowCount?.toLocaleString()} rows • {datasetStats?.featureCount} features
               </div>
             </CardContent>
           </Card>

@@ -4,6 +4,197 @@ import { DecisionTreeRegression } from 'ml-cart';
 import { GBDTClassifier } from '../../shared/gbdt';
 import type { Dataset, ModelMetrics, FeatureImportance, CrossValidationResult, ScaledResult } from '@shared/types';
 
+// === PART 4: UNIVERSAL ML PREPROCESSING ===
+
+/**
+ * Universal target encoding with priority-based logic
+ * Handles ANY binary classification domain, not just churn
+ */
+function encodeTargetVariable(rows: Record<string, any>[], targetColumn: string): number[] {
+  const y: number[] = new Array(rows.length).fill(0);
+  const values = rows.map(r => r[targetColumn]);
+  
+  // Priority 1: Already encoded as 0/1
+  const uniqueValues = Array.from(new Set(values.filter(v => v !== null && v !== undefined && v !== '')));
+  if (uniqueValues.length === 2 && uniqueValues.every(v => v === 0 || v === 1)) {
+    return values.map(v => v === 1 ? 1 : 0);
+  }
+  
+  // Priority 2: Exactly two unique string values - encode minority class as 1
+  if (uniqueValues.length === 2 && uniqueValues.every(v => typeof v === 'string')) {
+    const valueCounts: Record<string, number> = {};
+    values.forEach(v => {
+      if (v !== null && v !== undefined && v !== '') {
+        valueCounts[String(v)] = (valueCounts[String(v)] || 0) + 1;
+      }
+    });
+    
+    const sortedValues = Object.entries(valueCounts).sort((a, b) => b[1] - a[1]);
+    if (sortedValues.length === 2) {
+      const majorityClass = sortedValues[0][0].toLowerCase();
+      const minorityClass = sortedValues[1][0].toLowerCase();
+      
+      // Minority class = positive outcome (fraud, attrition, churn, etc.) = 1
+      return values.map(v => {
+        if (v === null || v === undefined || v === '') return 0;
+        return String(v).toLowerCase() === minorityClass ? 1 : 0;
+      });
+    }
+  }
+  
+  // Priority 3: Yes/No, True/False, Y/N (case-insensitive)
+  const yesValues = ['yes', 'true', 'y', '1'];
+  const noValues = ['no', 'false', 'n', '0'];
+  
+  if (uniqueValues.every(v => {
+    const s = String(v).toLowerCase();
+    return yesValues.includes(s) || noValues.includes(s);
+  })) {
+    return values.map(v => {
+      if (v === null || v === undefined || v === '') return 0;
+      return yesValues.includes(String(v).toLowerCase()) ? 1 : 0;
+    });
+  }
+  
+  // Priority 4: Exactly two numeric values that aren't 0/1
+  if (uniqueValues.length === 2 && uniqueValues.every(v => typeof v === 'number')) {
+    const numValues = uniqueValues as number[];
+    const largerValue = Math.max(...numValues);
+    return values.map(v => {
+      if (v === null || v === undefined || v === '') return 0;
+      return Number(v) === largerValue ? 1 : 0;
+    });
+  }
+  
+  // Fallback: Throw descriptive error
+  throw new Error(
+    `Target column '${targetColumn}' could not be encoded as binary. ` +
+    `It must contain exactly two distinct values. Found: ${JSON.stringify(uniqueValues.slice(0, 10))}${uniqueValues.length > 10 ? '...' : ''}.`
+  );
+}
+
+/**
+ * Robust feature preprocessing with comprehensive missing value handling
+ */
+function preprocessFeatures(
+  dataset: Dataset,
+  features: string[]
+): { X: number[][]; encodingMap: Record<string, Record<string, number>>; warnings: string[] } {
+  const { rows } = dataset;
+  const X = new Matrix(rows.length, features.length);
+  const encodingMap: Record<string, Record<string, number>> = {};
+  const warnings: string[] = [];
+  
+  // Missing value indicators
+  const missingIndicators = [null, undefined, '', 'N/A', 'n/a', 'NA', 'null', 'none', '-', '--'];
+  const isMissing = (v: any): boolean => missingIndicators.includes(v) || 
+    (typeof v === 'string' && missingIndicators.includes(v.trim().toLowerCase()));
+  
+  features.forEach((feature, colIndex) => {
+    const values = rows.map(r => r[feature]);
+    const nonMissingValues = values.filter(v => !isMissing(v));
+    
+    // Check for Infinity values in numerical columns
+    const hasInfinity = nonMissingValues.some(v => typeof v === 'number' && (!isFinite(v) || v === Infinity || v === -Infinity));
+    
+    // Numerical column handling
+    const isNumeric = nonMissingValues.every(v => typeof v === 'number');
+    
+    if (isNumeric) {
+      // Replace Infinity with max/min
+      let processedValues = nonMissingValues.map(v => {
+        if (v === Infinity) return Math.max(...nonMissingValues.filter(n => n !== Infinity && n !== -Infinity));
+        if (v === -Infinity) return Math.min(...nonMissingValues.filter(n => n !== Infinity && n !== -Infinity));
+        return v;
+      }) as number[];
+      
+      const mean = processedValues.length > 0 
+        ? processedValues.reduce((a, b) => a + b, 0) / processedValues.length 
+        : 0;
+      
+      rows.forEach((row, rowIndex) => {
+        const val = row[feature];
+        X.set(rowIndex, colIndex, isMissing(val) ? mean : (typeof val === 'number' ? val : mean));
+      });
+    } else {
+      // Categorical column handling
+      const valueCounts: Record<string, number> = {};
+      nonMissingValues.forEach(v => {
+        const key = String(v);
+        valueCounts[key] = (valueCounts[key] || 0) + 1;
+      });
+      
+      const mode = Object.keys(valueCounts).length > 0 
+        ? Object.keys(valueCounts).reduce((a, b) => valueCounts[a] > valueCounts[b] ? a : b) 
+        : '';
+      
+      const uniqueValues = Array.from(new Set(nonMissingValues.map(String)));
+      
+      // High cardinality warning
+      if (uniqueValues.length > 50) {
+        warnings.push(`Feature '${feature}' has high cardinality (${uniqueValues.length} unique values). Consider reducing categories.`);
+      }
+      
+      // Label encoding
+      encodingMap[feature] = {};
+      uniqueValues.forEach((val, i) => {
+        encodingMap[feature][val] = i;
+      });
+      
+      rows.forEach((row, rowIndex) => {
+        const val = row[feature];
+        const strVal = isMissing(val) ? mode : String(val);
+        X.set(rowIndex, colIndex, encodingMap[feature][strVal] ?? 0);
+      });
+    }
+  });
+  
+  return { X: X.to2DArray(), encodingMap, warnings };
+}
+
+/**
+ * Training data validation to catch issues before training
+ */
+function validateTrainingData(X: number[][], y: number[], features: string[]): void {
+  // 1. Check for NaN or Infinity in X
+  for (let i = 0; i < X.length; i++) {
+    for (let j = 0; j < X[0].length; j++) {
+      const val = X[i][j];
+      if (isNaN(val) || !isFinite(val)) {
+        console.warn(`Replacing NaN/Infinity in feature matrix at row ${i}, col ${j} with 0`);
+        X[i][j] = 0;
+      }
+    }
+  }
+  
+  // 2. Ensure y has exactly two unique values (0 and 1)
+  const uniqueY = Array.from(new Set(y));
+  if (uniqueY.length !== 2 || !uniqueY.every(v => v === 0 || v === 1)) {
+    throw new Error(
+      `Target variable must have exactly two unique values (0 and 1). Found: ${JSON.stringify(uniqueY)}. `
+    );
+  }
+  
+  // 3. Ensure at least 10 rows in both train and test sets (assuming 80/20 split)
+  const n = X.length;
+  if (n < 50) {
+    throw new Error(
+      `Dataset too small (${n} rows). Need at least 50 rows for reliable train/test split. `
+    );
+  }
+  
+  // 4. Ensure minority class has at least 3 samples
+  const class0Count = y.filter(v => v === 0).length;
+  const class1Count = y.filter(v => v === 1).length;
+  const minClassCount = Math.min(class0Count, class1Count);
+  
+  if (minClassCount < 3) {
+    throw new Error(
+      `Minority class has only ${minClassCount} samples. Need at least 3 samples per class for classification. `
+    );
+  }
+}
+
 // --- Replicated Logic from ml-engine.ts ---
 
 function preprocessData(
@@ -12,39 +203,22 @@ function preprocessData(
     features: string[]
 ) {
     const { rows } = dataset;
-    const y: number[] = new Array(rows.length).fill(0);
-    const X = new Matrix(rows.length, features.length);
-    const encodingMap: Record<string, Record<string, number>> = {};
-    features.forEach((feature, colIndex) => {
-        const values = rows.map(r => r[feature]);
-        const isNumeric = values.every(v => typeof v === 'number' || v === null || v === undefined || v === '');
-        if (isNumeric) {
-            const nonNull = values.filter(v => typeof v === 'number') as number[];
-            const mean = nonNull.length > 0 ? nonNull.reduce((a, b) => a + b, 0) / nonNull.length : 0;
-            rows.forEach((row, rowIndex) => {
-                X.set(rowIndex, colIndex, typeof row[feature] === 'number' ? row[feature] : mean);
-            });
-        } else {
-            const valueCounts: Record<string, number> = {};
-            values.forEach(v => {
-                if (v !== null && v !== undefined && v !== '') valueCounts[String(v)] = (valueCounts[String(v)] || 0) + 1;
-            });
-            const mode = Object.keys(valueCounts).length > 0 ? Object.keys(valueCounts).reduce((a, b) => valueCounts[a] > valueCounts[b] ? a : b) : '';
-            const uniqueValues = Array.from(new Set(values.filter(v => v !== null && v !== undefined && v !== '').map(String)));
-            encodingMap[feature] = {};
-            uniqueValues.forEach((val, i) => {
-                encodingMap[feature][val] = i;
-            });
-            rows.forEach((row, rowIndex) => {
-                const val = (row[feature] === null || row[feature] === undefined || row[feature] === '') ? mode : String(row[feature]);
-                X.set(rowIndex, colIndex, encodingMap[feature][val] || 0);
-            });
-        }
-    });
-    rows.forEach((row, i) => {
-        y[i] = row[targetVariable] ? 1 : 0;
-    });
-    return { X: X.to2DArray(), y, encodingMap };
+    
+    // Universal target encoding (Part 4.1)
+    const y = encodeTargetVariable(rows, targetVariable);
+    
+    // Robust feature preprocessing (Part 4.2)
+    const { X, encodingMap, warnings } = preprocessFeatures(dataset, features);
+    
+    // Log any preprocessing warnings
+    if (warnings.length > 0) {
+        console.log('Preprocessing warnings:', warnings);
+    }
+    
+    // Training data validation (Part 4.3)
+    validateTrainingData(X, y, features);
+    
+    return { X, y, encodingMap };
 }
 
 function trainTestSplit(X: number[][], y: number[], testSize: number, stratified: boolean = true) {

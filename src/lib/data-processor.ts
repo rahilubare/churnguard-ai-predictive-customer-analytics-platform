@@ -30,18 +30,52 @@ export function getConsistencyScore(
   return { score, consMatch, firstLen };
 }
 async function parseCsvFile(file: File, delimiter?: string): Promise<Dataset & { errors?: ParseError[] }> {
+  // === CSV Encoding Detection ===
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer.slice(0, 4));
+  
+  // Check for BOM (Byte Order Mark)
+  const hasUtf8Bom = bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF;
+  const hasUtf16BeBom = bytes[0] === 0xFE && bytes[1] === 0xFF;
+  const hasUtf16LeBom = bytes[0] === 0xFF && bytes[1] === 0xFE;
+  
+  let textContent: string;
+  
+  if (hasUtf16BeBom || hasUtf16LeBom) {
+    // UTF-16 encoded - convert to UTF-8 first
+    const decoder = new TextDecoder(hasUtf16BeBom ? 'utf-16be' : 'utf-16le');
+    textContent = decoder.decode(buffer);
+    console.log('CSV file detected as UTF-16 encoded, converted to UTF-8');
+  } else if (hasUtf8Bom) {
+    // UTF-8 with BOM - strip BOM and parse normally
+    textContent = new TextDecoder('utf-8').decode(buffer.slice(3));
+  } else {
+    // No BOM - try UTF-8 first
+    textContent = new TextDecoder('utf-8').decode(buffer);
+    
+    // Check for garbage characters (replacement character or high non-ASCII ratio)
+    const sampleText = textContent.substring(0, 1000);
+    const replacementChars = (sampleText.match(/\uFFFD/g) || []).length;
+    const nonAsciiRatio = (sampleText.match(/[^\x00-\x7F]/g) || []).length / sampleText.length;
+    
+    if (replacementChars > 0 || nonAsciiRatio > 0.3) {
+      // Likely not UTF-8, try Latin-1 (ISO-8859-1)
+      console.warn('UTF-8 parsing produced suspicious results, falling back to Latin-1');
+      textContent = new TextDecoder('latin-1').decode(buffer);
+    }
+  }
+  
   if (delimiter) {
     // Manual delimiter provided, parse directly
     return new Promise<Dataset & { errors?: ParseError[] }>((resolve, reject) => {
-      Papa.parse<Record<string, any>>(file, {
+      Papa.parse<Record<string, any>>(textContent, {
         header: true,
         dynamicTyping: true,
         skipEmptyLines: true,
         delimiter,
         worker: true,
-        // <-- missing comma added here
         complete: (res: ParseResult<any>) => {
-        // Identify serious “TooManyFields” errors
+        // Identify serious "TooManyFields" errors
         const seriousErrors = res.errors.filter((e: ParseError) => e.code === 'TooManyFields');
         const totalRows = res.data.length;
         // Reject if the file is too inconsistent (more than 10% serious errors) or lacks proper structure
@@ -105,16 +139,172 @@ async function parseCsvFile(file: File, delimiter?: string): Promise<Dataset & {
 async function parseXlsxFile(file: File): Promise<Dataset> {
   const arrayBuffer = await file.arrayBuffer();
   const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-  const firstSheetName = workbook.SheetNames[0];
-  if (!firstSheetName) throw new Error('XLSX file contains no sheets.');
-  const worksheet = workbook.Sheets[firstSheetName];
-  const jsonData: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, {
+  
+  // === STEP 1: Multi-Sheet Workbook Support ===
+  const sheetNames = workbook.SheetNames;
+  if (sheetNames.length === 0) {
+    throw new Error('XLSX file contains no sheets.');
+  }
+  
+  // Score each sheet to find the best one
+  let bestSheetName: string = sheetNames[0];
+  let bestScore = -Infinity;
+  
+  for (const sheetName of sheetNames) {
+    const worksheet = workbook.Sheets[sheetName];
+    const json = XLSX.utils.sheet_to_json(worksheet, { defval: null, blankrows: false }) as any[];
+    
+    if (!json || json.length === 0) continue; // Skip empty sheets
+    
+    // Calculate score: rows * columns * fill_ratio
+    const rows = json.length;
+    const cols = Object.keys(json[0] || {}).length;
+    const totalCells = rows * cols;
+    const nonEmptyCells = json.reduce((acc, row) => acc + Object.values(row).filter(v => v !== null && v !== undefined && v !== '').length, 0);
+    const fillRatio = totalCells > 0 ? nonEmptyCells / totalCells : 0;
+    
+    // Score formula: prioritize data density
+    const score = rows * cols * (1 + fillRatio);
+    
+    if (score > bestScore) {
+      bestScore = score;
+      bestSheetName = sheetName;
+    }
+  }
+  
+  const worksheet = workbook.Sheets[bestSheetName];
+  
+  // Convert to JSON with raw values for post-processing
+  let jsonData: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, {
     defval: null,
     blankrows: false,
+    raw: true, // Keep raw values including date serial numbers
   }) as any[];
-  if (!jsonData || jsonData.length === 0) throw new Error('XLSX file contains no data.');
-  const headers = Object.keys(jsonData[0]);
-  return { headers, rows: jsonData.slice(0, MAX_ROWS) };
+  
+  if (!jsonData || jsonData.length === 0) {
+    throw new Error('XLSX file contains no data.');
+  }
+  
+  // === STEP 2: Smart Header Row Detection ===
+  // Re-parse with raw row data to detect headers
+  const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null }) as any[][];
+  
+  let headerRowIndex = 0;
+  const maxScanRows = Math.min(10, rawRows.length);
+  
+  for (let i = 0; i < maxScanRows; i++) {
+    const row = rawRows[i];
+    const nonEmptyCount = row.filter(cell => cell !== null && cell !== undefined && cell !== '').length;
+    const totalCols = row.length;
+    const nonEmptyRatio = totalCols > 0 ? nonEmptyCount / totalCols : 0;
+    
+    // Check if this looks like a header row:
+    // - More than 50% non-empty
+    // - Values are short strings (not long formulas or pure numbers)
+    const looksLikeHeaders = nonEmptyRatio > 0.5 && 
+      row.every(cell => {
+        if (cell === null || cell === undefined || cell === '') return true;
+        const str = String(cell);
+        return str.length < 100 && !/^\d+\.?\d*$/.test(str); // Not a pure number
+      });
+    
+    if (looksLikeHeaders) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+  
+  // Extract headers from detected row
+  const headerRow = rawRows[headerRowIndex] || [];
+  const headers = headerRow.map(h => h !== null && h !== undefined && h !== '' ? String(h) : '').filter(h => h);
+  
+  // Filter data rows (everything after header row)
+  jsonData = jsonData.slice(headerRowIndex);
+  
+  // === STEP 3: Merged Cell Handling (Forward-Fill) ===
+  // Create a map of current values per column
+  const columnFillValues: Record<string, any> = {};
+  
+  for (let rowIndex = 0; rowIndex < jsonData.length; rowIndex++) {
+    const row = jsonData[rowIndex];
+    
+    for (const header of headers) {
+      const value = row[header];
+      
+      if (value === null || value === undefined || value === '') {
+        // Fill with last known value
+        row[header] = columnFillValues[header] || null;
+      } else {
+        // Update last known value
+        columnFillValues[header] = value;
+      }
+    }
+  }
+  
+  // === STEP 4: Date & Number Normalization ===
+  const dateKeywords = ['date', 'time', 'day', 'month', 'year', 'created', 'updated', 'modified', 'timestamp'];
+  
+  for (const row of jsonData) {
+    for (const header of headers) {
+      let value = row[header];
+      const lowerHeader = header.toLowerCase();
+      
+      if (value === null || value === undefined) continue;
+      
+      // Date detection and conversion
+      const isDateColumn = dateKeywords.some(kw => lowerHeader.includes(kw));
+      
+      if (isDateColumn && typeof value === 'number' && value >= 1 && value <= 50000) {
+        // Excel serial date conversion
+        const excelEpoch = new Date(1899, 11, 30);
+        const dateValue = new Date(excelEpoch.getTime() + (value * 24 * 60 * 60 * 1000));
+        row[header] = dateValue.toISOString().split('T')[0]; // YYYY-MM-DD format
+        continue;
+      }
+      
+      // String normalization
+      if (typeof value === 'string') {
+        // Trim whitespace
+        value = value.trim();
+        
+        // Currency stripping
+        if (/^[\$€£₹]/.test(value)) {
+          value = value.replace(/^[\$€£₹]/, '').replace(/,/g, '');
+          const numVal = parseFloat(value);
+          if (!isNaN(numVal)) {
+            row[header] = numVal;
+            value = numVal;
+          }
+        }
+        
+        // Percentage conversion
+        if (value.endsWith('%')) {
+          const numVal = parseFloat(value.replace('%', '')) / 100;
+          if (!isNaN(numVal)) {
+            row[header] = numVal;
+            value = numVal;
+          }
+        }
+        
+        // Boolean normalization
+        const lowerVal = value.toLowerCase();
+        if (['yes', 'true', 'y'].includes(lowerVal)) {
+          row[header] = 1;
+        } else if (['no', 'false', 'n'].includes(lowerVal)) {
+          row[header] = 0;
+        }
+      }
+    }
+  }
+  
+  // === STEP 5: Large Dataset Warning ===
+  const finalData = jsonData.slice(0, MAX_ROWS);
+  
+  if (jsonData.length > MAX_ROWS) {
+    console.warn(`XLSX file truncated from ${jsonData.length} to ${MAX_ROWS} rows for performance.`);
+  }
+  
+  return { headers, rows: finalData };
 }
 /**
  * Parse a JSON file (array of objects or object with data array)
@@ -218,9 +408,11 @@ export async function parseCsv(file: File): Promise<Dataset> {
 export function getDatasetStats(dataset: Dataset): Record<string, ColumnStat> {
   const stats: Record<string, ColumnStat> = {};
   if (!dataset || dataset.rows.length === 0) return stats;
+  
   dataset.headers.forEach((header) => {
     const values = dataset.rows.map((row) => row[header]);
     const nonNullValues = values.filter((v) => v !== null && v !== undefined && v !== '');
+    
     // For large datasets, sample for unique values and counts to avoid performance issues
     const sample = nonNullValues.length > 10000 ? nonNullValues.slice(0, 10000) : nonNullValues;
     const uniqueValues = new Set(sample);
@@ -229,10 +421,12 @@ export function getDatasetStats(dataset: Dataset): Record<string, ColumnStat> {
       const key = String(v);
       valueCounts[key] = (valueCounts[key] || 0) + 1;
     });
+    
     let columnType: 'numerical' | 'categorical' = 'categorical';
     if (nonNullValues.every((v) => typeof v === 'number')) {
       columnType = 'numerical';
     }
+    
     stats[header] = {
       total: values.length,
       missing: values.length - nonNullValues.length,
@@ -241,7 +435,107 @@ export function getDatasetStats(dataset: Dataset): Record<string, ColumnStat> {
       valueCounts,
     };
   });
+  
   return stats;
+}
+
+/**
+ * Enhanced dataset stats with semantic type detection and enriched metadata
+ */
+export function getEnrichedDatasetStats(dataset: Dataset): Record<string, any> {
+  const stats = getDatasetStats(dataset);
+  const enriched: Record<string, any> = {};
+  
+  Object.entries(stats).forEach(([header, stat]) => {
+    const values = dataset.rows.map(row => row[header]);
+    const nonNullValues = values.filter(v => v !== null && v !== undefined && v !== '');
+    const lowerHeader = header.toLowerCase();
+    
+    // Semantic Type Detection
+    let semanticType = 'categorical';
+    
+    // Check for ID columns
+    const idKeywords = ['id', 'key', 'uuid', 'guid', 'code', 'reference', 'ref'];
+    const isIdColumn = idKeywords.some(kw => lowerHeader.includes(kw)) || 
+                       stat.unique > dataset.rows.length * 0.95;
+    
+    if (isIdColumn) {
+      semanticType = 'id';
+    }
+    // Check for target variable
+    else if (inferTargetColumn({ headers: [header], rows: dataset.rows.slice(0, 100) }) === header) {
+      semanticType = 'target';
+    }
+    // Check for datetime
+    else if (['date', 'time', 'created', 'updated', 'modified', 'timestamp'].some(kw => lowerHeader.includes(kw))) {
+      semanticType = 'datetime';
+    }
+    // Check for currency
+    else if (['price', 'cost', 'amount', 'revenue', 'salary', 'fee', 'payment'].some(kw => lowerHeader.includes(kw))) {
+      semanticType = 'currency';
+    }
+    // Check for percentage
+    else if (lowerHeader.includes('percent') || lowerHeader.includes('rate') || lowerHeader.endsWith('%')) {
+      semanticType = 'percentage';
+    }
+    // Check for email
+    else if (nonNullValues.some(v => typeof v === 'string' && v.includes('@'))) {
+      semanticType = 'email';
+    }
+    // Check for phone
+    else if (nonNullValues.some(v => typeof v === 'string' && /^[\d\s\-\+\(\)]+$/.test(v.replace(/[\s]/g, '')))) {
+      semanticType = 'phone';
+    }
+    // Check for boolean
+    else if (stat.unique === 2 && nonNullValues.every(v => [0, 1, 'yes', 'no', 'true', 'false', 'y', 'n'].includes(String(v).toLowerCase()))) {
+      semanticType = 'boolean';
+    }
+    // Check for text (high cardinality strings)
+    else if (stat.unique > nonNullValues.length * 0.5 && stat.type === 'categorical') {
+      semanticType = 'text';
+    }
+    // Numerical subtypes
+    else if (stat.type === 'numerical') {
+      // Compute numerical statistics
+      const numValues = nonNullValues.filter(v => typeof v === 'number') as number[];
+      if (numValues.length > 0) {
+        numValues.sort((a, b) => a - b);
+        const min = numValues[0];
+        const max = numValues[numValues.length - 1];
+        const mean = numValues.reduce((a, b) => a + b, 0) / numValues.length;
+        const medianIndex = Math.floor(numValues.length / 2);
+        const median = numValues.length % 2 === 0 
+          ? (numValues[medianIndex - 1] + numValues[medianIndex]) / 2 
+          : numValues[medianIndex];
+        
+        enriched[header] = {
+          ...stat,
+          semanticType,
+          min,
+          max,
+          mean: Math.round(mean * 100) / 100,
+          median,
+          sampleValues: nonNullValues.slice(0, 3),
+        };
+        return;
+      }
+    }
+    
+    // For categorical: get top 5 most common values
+    const sortedCounts = Object.entries(stat.valueCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([value, count]) => ({ value, count, percentage: Math.round(count / nonNullValues.length * 10000) / 100 }));
+    
+    enriched[header] = {
+      ...stat,
+      semanticType,
+      topValues: sortedCounts,
+      sampleValues: nonNullValues.slice(0, 3),
+    };
+  });
+  
+  return enriched;
 }
 
 /**

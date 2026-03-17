@@ -1,4 +1,5 @@
 import type { ColumnStat, Dataset } from "@shared/types";
+import { inferTargetColumn, detectDatasetDomain } from "./data-processor";
 
 export interface AuditFinding {
     id: string;
@@ -78,9 +79,9 @@ export function auditDataset(dataset: Dataset, stats: Record<string, ColumnStat>
             });
         }
 
-        // 4. Data Leakage Suspects (Common in Churn)
+        // 4. Data Leakage Suspects (Universal - any PII/IDs)
         const lowerHeader = header.toLowerCase();
-        const leakageKeywords = ["customer_id", "email", "name", "phone", "zip", "postcode", "address"];
+        const leakageKeywords = ["id", "email", "name", "phone", "zip", "postcode", "address", "ssn", "credit_card", "password", "token"];
         if (leakageKeywords.some(kw => lowerHeader.includes(kw))) {
             findings.push({
                 id: `leakage-${header}`,
@@ -94,35 +95,150 @@ export function auditDataset(dataset: Dataset, stats: Record<string, ColumnStat>
         }
     });
 
-    // 5. Target Variable Imbalance (Assuming 'churn' or similar as target)
-    const targetCandidate = headers.find(h => ["churn", "target", "retained", "exited"].includes(h.toLowerCase()));
-    if (targetCandidate) {
-        const targetStat = stats[targetCandidate];
-        const values = Object.values(targetStat.valueCounts);
-        if (values.length === 2) {
-            const minVal = Math.min(...values);
-            const imbalanceRatio = minVal / rowCount;
-            if (imbalanceRatio < 0.1) {
-                findings.push({
-                    id: "imbalance",
-                    column: targetCandidate,
-                    type: "warning",
-                    title: "Class Imbalance Detected",
-                    description: `The minority class in '${targetCandidate}' accounts for only ${(imbalanceRatio * 100).toFixed(1)}% of the data.`,
-                    impact: "The model might become biased toward the majority class and fail to catch churners.",
-                    recommendation: "Consider oversampling the minority class or using weighted loss.",
-                });
-            }
-        }
+    // 5. Duplicate Row Detection
+    const rowSignatures = new Set<string>();
+    let duplicateCount = 0;
+    dataset.rows.forEach(row => {
+      const signature = JSON.stringify(Object.values(row).sort());
+      if (rowSignatures.has(signature)) {
+        duplicateCount++;
+      } else {
+        rowSignatures.add(signature);
+      }
+    });
+    
+    const duplicateRate = duplicateCount / rowCount;
+    if (duplicateRate > 0.01) {
+      findings.push({
+        id: "duplicates",
+        type: "warning",
+        title: "Duplicate Rows Detected",
+        description: `${(duplicateRate * 100).toFixed(1)}% of rows appear to be exact duplicates.`,
+        impact: "Duplicates can bias the model and lead to overfitting.",
+        recommendation: "Remove duplicate rows before training.",
+      });
     }
 
-    // Calculate summary
+    // 6. Column Name Quality Check
+    headers.forEach(header => {
+      const issues: string[] = [];
+      
+      if (/\s+/.test(header)) issues.push("contains spaces");
+      if (/^[0-9]/.test(header)) issues.push("starts with number");
+      if (/[^a-zA-Z0-9_\s]/.test(header)) issues.push("contains special characters");
+      
+      if (issues.length > 0) {
+        findings.push({
+          id: `column-name-${header}`,
+          column: header,
+          type: "info",
+          title: "Column Name Could Be Improved",
+          description: `Column '${header}' ${issues.join(", ")}.`,
+          impact: "May cause issues with some ML libraries or make feature importance harder to interpret.",
+          recommendation: "Consider renaming to use only letters, numbers, and underscores (e.g., 'customer_id').",
+        });
+      }
+    });
+
+    // Note: Mixed type detection would require extending ColumnStat type
+    // For now, the data processor handles this during parsing
+
+    // 8. Domain-Aware Target Analysis
+    const targetCandidate = inferTargetColumn(dataset);
+    const domainInfo = detectDatasetDomain(dataset);
+    
+    if (targetCandidate) {
+      const targetStat = stats[targetCandidate];
+      const values = Object.values(targetStat.valueCounts);
+      
+      if (values.length === 2) {
+        const minVal = Math.min(...values);
+        const imbalanceRatio = minVal / rowCount;
+        
+        if (imbalanceRatio < 0.15) {
+          // Domain-specific messaging
+          let targetLabel = "the target variable";
+          let contextMsg = "";
+          
+          if (domainInfo.domain.includes("HR")) {
+            targetLabel = "employee attrition";
+            contextMsg = " in your workforce";
+          } else if (domainInfo.domain.includes("Fraud")) {
+            targetLabel = "fraudulent transactions";
+            contextMsg = " in your transaction data";
+          } else if (domainInfo.domain.includes("Healthcare")) {
+            targetLabel = "patient outcomes";
+            contextMsg = " in your patient data";
+          } else if (domainInfo.domain.includes("Student")) {
+            targetLabel = "student dropout";
+            contextMsg = " rates";
+          } else if (domainInfo.domain.includes("Churn")) {
+            targetLabel = "customer churn";
+            contextMsg = "";
+          }
+          
+          const severity = imbalanceRatio < 0.05 ? "critical" : "warning";
+          findings.push({
+            id: "imbalance",
+            column: targetCandidate,
+            type: severity,
+            title: `Class Imbalance in ${targetLabel}`,
+            description: `The minority class (${targetLabel}) accounts for only ${(imbalanceRatio * 100).toFixed(1)}%${contextMsg}.`,
+            impact: "The model might become biased toward the majority class and fail to detect rare events.",
+            recommendation: "Consider oversampling the minority class, using weighted loss, or collecting more balanced data.",
+          });
+        }
+      } else if (values.length > 2) {
+        findings.push({
+          id: "multi-class-target",
+          column: targetCandidate,
+          type: "info",
+          title: "Multi-Class Target Detected",
+          description: `The target column '${targetCandidate}' has ${values.length} unique values. This requires multi-class classification.`,
+          impact: "Random Forest and GBDT can handle multi-class problems, but accuracy may be lower than binary classification.",
+          recommendation: "Verify this is the correct target column, or consider converting to binary if appropriate for your use case.",
+        });
+      }
+    } else {
+      findings.push({
+        id: "no-target",
+        type: "info",
+        title: "No Clear Target Variable",
+        description: "Could not automatically identify a binary target variable for classification.",
+        impact: "You'll need to manually select which column to predict.",
+        recommendation: "Look for columns with exactly 2 unique values (0/1, Yes/No, True/False) that represent the outcome you want to predict.",
+      });
+    }
+
+    // Calculate summary with improved scoring
     const criticals = findings.filter(f => f.type === "critical").length;
     const warnings = findings.filter(f => f.type === "warning").length;
     const infos = findings.filter(f => f.type === "info").length;
 
-    let score = 100 - (criticals * 20) - (warnings * 10);
-    score = Math.max(0, score);
+    // Nuanced scoring algorithm
+    let score = 100;
+    score -= criticals * 25;  // Critical issues are severe
+    score -= warnings * 10;   // Warnings matter
+    score -= infos * 3;       // Info findings have minor impact
+    
+    // Bonus for sufficient data
+    if (rowCount > 1000) {
+      score += 5;
+    }
+    
+    // Bonus for clean binary target
+    if (targetCandidate) {
+      const targetStat = stats[targetCandidate];
+      const hasOnlyTwoClasses = Object.keys(targetStat.valueCounts).length === 2;
+      const noMissingInTarget = targetStat.missing === 0;
+      
+      if (hasOnlyTwoClasses && noMissingInTarget) {
+        score += 5;
+      }
+    }
+    
+    // Floor at 0, ceiling at 100
+    score = Math.max(0, Math.min(100, score));
 
     return {
         summary: {

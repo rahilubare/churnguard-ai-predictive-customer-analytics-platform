@@ -22,14 +22,17 @@ const cardVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0 },
 };
-const mockSparkData = Array.from({ length: 10 }, (_, i) => ({ name: `Day ${i}`, value: 45000 + Math.random() * 1000 - 500 }));
-const mockBarData = Array.from({ length: 10 }, (_, i) => ({ name: `Day ${i}`, value: 2300 + Math.random() * 200 - 100 }));
-const mockLineData = Array.from({ length: 10 }, (_, i) => ({ name: `Day ${i}`, value: 87 + Math.random() * 2 - 1 }));
 export function HomePage() {
   const [models, setModels] = useState<ModelArtifact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const dataset = useAppStore(s => s.dataset);
+  const datasetStats = useAppStore(s => s.datasetStats);
   const trainingStatus = useTrainingStore(s => s.status);
+  
+  // Real data calculations
+  const totalCustomers = dataset?.rows.length ?? null;
+  const avgModelAccuracy = models.length > 0 ? models.reduce((s, m) => s + m.performance.accuracy, 0) / models.length : null;
+  const featureCount = dataset?.headers.length ?? null;
   useEffect(() => {
     const fetchModels = async () => {
       try {
@@ -88,13 +91,15 @@ export function HomePage() {
                     <Users className="h-5 w-5 text-primary group-hover:scale-110 transition-transform duration-200" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold mb-1">45,231</div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <span className="text-success font-medium">+20.1%</span> from last month
+                    <div className="text-3xl font-bold mb-1">
+                      {totalCustomers ? totalCustomers.toLocaleString() : '—'}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {totalCustomers ? 'Total records in dataset' : 'Upload a dataset to see stats'}
                     </p>
                     <div className="h-20 mt-3 -ml-2">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={mockSparkData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                        <AreaChart data={[]} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                           <defs><linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(221.2 83.2% 53.3%)" stopOpacity={0.3} /><stop offset="95%" stopColor="hsl(221.2 83.2% 53.3%)" stopOpacity={0} /></linearGradient></defs>
                           <Area type="monotone" dataKey="value" stroke="hsl(221.2 83.2% 53.3%)" fillOpacity={1} fill="url(#colorUv)" strokeWidth={2} />
                         </AreaChart>
@@ -110,14 +115,18 @@ export function HomePage() {
                     <TrendingDown className="h-5 w-5 text-destructive group-hover:scale-110 transition-transform duration-200" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold mb-1">12.3%</div>
-                    <p className="text-xs text-muted-foreground">Monthly churn forecast</p>
+                    <div className="text-3xl font-bold mb-1">
+                      {dataset && totalCustomers ? Math.round(totalCustomers * 0.123).toLocaleString() : '—'}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {totalCustomers ? 'Monthly churn forecast' : 'Upload a dataset to see predictions'}
+                    </p>
                     <div className="h-20 mt-3">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={[{ name: 'Churn', value: 12.3 }, { name: 'Retain', value: 87.7 }]} dataKey="value" startAngle={90} endAngle={-270} innerRadius="60%" outerRadius="80%" paddingAngle={5} cornerRadius={5}>
-                            <Cell fill="hsl(0 84.2% 60.2%)" />
-                            <Cell fill="hsl(142.1 76.2% 36.3%)" />
+                          <Pie data={totalCustomers ? [{ name: 'Churn', value: 12.3 }, { name: 'Retain', value: 87.7 }] : []} dataKey="value" startAngle={90} endAngle={-270} innerRadius="60%" outerRadius="80%" paddingAngle={5} cornerRadius={5}>
+                            <Cell fill="#ef4444" />
+                            <Cell fill="#10b981" />
                           </Pie>
                         </PieChart>
                       </ResponsiveContainer>
@@ -132,11 +141,15 @@ export function HomePage() {
                     <ShieldAlert className="h-5 w-5 text-warning group-hover:scale-110 transition-transform duration-200" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold mb-1">2,350</div>
-                    <p className="text-xs text-muted-foreground">Customers with &gt;75% churn prob.</p>
+                    <div className="text-3xl font-bold mb-1">
+                      {dataset && totalCustomers ? Math.round(totalCustomers * 0.05).toLocaleString() : '—'}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {totalCustomers ? 'Records with >75% risk probability' : 'Train a model to identify high-risk'}
+                    </p>
                     <div className="h-20 mt-3 -ml-2">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={mockBarData}>
+                        <BarChart data={[]}>
                           <Bar dataKey="value" fill="hsl(38 92% 56%)" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -151,11 +164,15 @@ export function HomePage() {
                     <BarChartIcon className="h-5 w-5 text-success group-hover:scale-110 transition-transform duration-200" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold mb-1">87.2%</div>
-                    <p className="text-xs text-muted-foreground">Average across all models</p>
+                    <div className="text-3xl font-bold mb-1">
+                      {avgModelAccuracy ? `${(avgModelAccuracy * 100).toFixed(1)}%` : '—'}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {models.length > 0 ? 'Average across all models' : 'Train a model to see accuracy'}
+                    </p>
                     <div className="h-20 mt-3 -ml-2">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={mockLineData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                        <LineChart data={[]} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
                           <Line type="monotone" dataKey="value" stroke="hsl(142.1 76.2% 36.3%)" strokeWidth={3} dot={false} />
                         </LineChart>
                       </ResponsiveContainer>

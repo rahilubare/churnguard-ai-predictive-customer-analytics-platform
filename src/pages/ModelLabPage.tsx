@@ -341,7 +341,7 @@ export function ModelLabPage() {
                                 const auc = metrics.rocAuc;
                                 return Array.from({ length: points }, (_, i) => {
                                   const fpr = i / (points - 1);
-                                  const tpr = Math.pow(fpr, 1 - auc) * fpr + (auc * fpr);
+                                  const tpr = fpr === 0 ? 0 : Math.min(1, Math.pow(fpr, (1 - auc) / Math.max(auc, 0.001)));
                                   return { fpr, tpr };
                                 });
                               })()}

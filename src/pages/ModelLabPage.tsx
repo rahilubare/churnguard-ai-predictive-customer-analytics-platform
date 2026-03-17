@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/store/app-store";
 import { useTrainingStore } from "@/store/training-store";
-import { FlaskConical, Info, Rocket, XCircle, Loader2, ArrowRight, FileText, ShieldCheck, AlertTriangle, ShieldAlert, Settings, BarChart as BarChartIcon } from "lucide-react";
+import { FlaskConical, Info, Rocket, XCircle, Loader2, ArrowRight, FileText, ShieldCheck, AlertTriangle, ShieldAlert, Settings, BarChart as BarChartIcon, CheckCircle } from "lucide-react";
 import { generateBrandedReport } from "@/lib/report-generator";
 import { auditDataset } from "@/lib/data-auditor";
 import { autoAnalyzeDataset } from "@/lib/data-auto-analyzer";
@@ -37,26 +37,8 @@ export function ModelLabPage() {
   const setTrainingState = useTrainingStore(s => s.setTrainingState);
   const deployModel = useTrainingStore(s => s.deployModel);
   const algorithm = useTrainingStore(s => s.algorithm);
-  const [localTarget, setLocalTarget] = useState<string>(targetVariable ?? '');
-  const [localAlgorithm, setLocalAlgorithm] = useState<string>('random_forest'); // Changed from 'python_gbdt' to use in-browser ML
-  const [localFeatures, setLocalFeatures] = useState<string[]>(selectedFeatures);
-  const [modelName, setModelName] = useState("");
-  const [isDeployDialogOpen, setDeployDialogOpen] = useState(false);
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [isTraining, setIsTraining] = useState(false);
-  const navigate = useNavigate();
-  const importanceData = useMemo(() => {
-    if (!featureImportance) return [];
-    return Object.entries(featureImportance)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => a.value - b.value);
-  }, [featureImportance]);
   
   const isLargeDataset = dataset ? dataset.rows.length > 50000 : false;
-  const auditReport = useMemo(() => {
-    if (!dataset || !datasetStats) return null;
-    return auditDataset(dataset, datasetStats);
-  }, [dataset, datasetStats]);
   
   // Auto-analyze dataset and pre-select target and features
   const analysisResult = useMemo(() => {
@@ -64,10 +46,27 @@ export function ModelLabPage() {
     return autoAnalyzeDataset(dataset, datasetStats);
   }, [dataset, datasetStats]);
   
+  const auditReport = useMemo(() => {
+    if (!dataset || !datasetStats) return null;
+    return auditDataset(dataset, datasetStats);
+  }, [dataset, datasetStats]);
+  
   // Initialize local state with auto-detected values
   const [localTarget, setLocalTarget] = useState<string>(analysisResult?.suggestedTarget || targetVariable || '');
   const [localAlgorithm, setLocalAlgorithm] = useState<string>('random_forest'); // Changed from 'python_gbdt' to use in-browser ML
   const [localFeatures, setLocalFeatures] = useState<string[]>(analysisResult?.suggestedFeatures || selectedFeatures || []);
+  const [modelName, setModelName] = useState("");
+  const [isDeployDialogOpen, setDeployDialogOpen] = useState(false);
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [isTraining, setIsTraining] = useState(false);
+  const navigate = useNavigate();
+  
+  const importanceData = useMemo(() => {
+    if (!featureImportance) return [];
+    return Object.entries(featureImportance)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => a.value - b.value);
+  }, [featureImportance]);
   const confusionMatrixData = useMemo(() => {
     if (!metrics) return [];
     const { truePositive, falseNegative, falsePositive, trueNegative } = metrics.confusionMatrix;
@@ -76,6 +75,17 @@ export function ModelLabPage() {
       { name: 'False Negative', value: falseNegative },
       { name: 'False Positive', value: falsePositive },
       { name: 'True Negative', value: trueNegative },
+    ];
+  }, [metrics]);
+  
+  const metricsData = useMemo(() => {
+    if (!metrics) return [];
+    return [
+      { name: 'Accuracy', value: metrics.accuracy },
+      { name: 'Precision', value: metrics.precision },
+      { name: 'Recall', value: metrics.recall },
+      { name: 'F1', value: metrics.f1 },
+      { name: 'ROC AUC', value: metrics.rocAuc },
     ];
   }, [metrics]);
   if (!dataset) {
@@ -355,7 +365,7 @@ export function ModelLabPage() {
                                 stroke="#10b981" 
                                 strokeWidth={2} 
                                 dot={false}
-                                name={`AUC: ${(auc * 100).toFixed(1)}%`}
+                                name={`AUC: ${(metrics.rocAuc * 100).toFixed(1)}%`}
                               />
                               <Line 
                                 type="linear" 

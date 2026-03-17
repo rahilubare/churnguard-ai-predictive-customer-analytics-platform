@@ -46,6 +46,26 @@ export function DataStudioPage() {
   const auditReport = dataset && datasetStats ? auditDataset(dataset, datasetStats) : null;
   const [delimiter, setDelimiter] = useState<string | undefined>(undefined);
   
+  // Sample data loading state
+  const [loadingSample, setLoadingSample] = useState<string | null>(null);
+  
+  const loadSampleDataset = async (name: string, url: string) => {
+    setLoadingSample(name);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch sample dataset');
+      const text = await response.text();
+      const file = new File([text], `${name.toLowerCase().replace(/\s+/g, '_')}.csv`, { type: 'text/csv' });
+      setFile(file);
+      await processFile();
+      toast.success('Sample Dataset Loaded', { description: `${dataset?.rows.length ?? 'Unknown'} rows ready for training.` });
+    } catch (error: any) {
+      toast.error('Failed to Load Sample', { description: error.message || 'An error occurred while loading the sample dataset.' });
+    } finally {
+      setLoadingSample(null);
+    }
+  };
+  
   // Database connection state
   const [dbType, setDbType] = useState('postgresql');
   const [dbHost, setDbHost] = useState('');
@@ -218,6 +238,104 @@ export function DataStudioPage() {
                   <FileUpload onFileSelect={setFile} />
                 </CardContent>
               </Card>
+              
+              {/* Sample Datasets Section */}
+              {!dataset && (
+                <>
+                  <div className="flex items-center gap-4 my-6">
+                    <div className="flex-1 h-px bg-border" />
+                    <span className="text-xs uppercase tracking-wider text-muted-foreground">or upload your own</span>
+                    <div className="flex-1 h-px bg-border" />
+                  </div>
+                  
+                  <Card className="border-2 border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Database className="h-5 w-5 text-primary" />
+                        Try a Sample Dataset
+                      </CardTitle>
+                      <CardDescription>
+                        No data? Start with one of these real-world datasets to explore the full workflow.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Telco Customer Churn */}
+                        <Card className="hover:shadow-lg transition-all duration-300 cursor-pointer border-primary/20 hover:border-primary/40">
+                          <CardHeader>
+                            <CardTitle className="text-base">Telco Customer Churn</CardTitle>
+                            <Badge variant="secondary" className="w-fit">Customer Analytics</Badge>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <p className="text-xs text-muted-foreground">
+                              7,043 rows · 21 columns · Customer churn prediction
+                            </p>
+                            <Button 
+                              className="w-full" 
+                              onClick={() => loadSampleDataset('Telco_Customer_Churn', 'https://raw.githubusercontent.com/dsrscientist/dataset1/master/telecom_churn.csv')}
+                              disabled={loadingSample === 'Telco_Customer_Churn'}
+                            >
+                              {loadingSample === 'Telco_Customer_Churn' ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</>
+                              ) : (
+                                <>Load Dataset <ArrowRight className="ml-2 h-4 w-4" /></>
+                              )}
+                            </Button>
+                          </CardContent>
+                        </Card>
+                        
+                        {/* IBM HR Attrition */}
+                        <Card className="hover:shadow-lg transition-all duration-300 cursor-pointer border-primary/20 hover:border-primary/40">
+                          <CardHeader>
+                            <CardTitle className="text-base">IBM HR Attrition</CardTitle>
+                            <Badge variant="secondary" className="w-fit">HR Analytics</Badge>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <p className="text-xs text-muted-foreground">
+                              1,470 rows · 35 columns · Employee attrition prediction
+                            </p>
+                            <Button 
+                              className="w-full" 
+                              onClick={() => loadSampleDataset('IBM_HR_Attrition', 'https://raw.githubusercontent.com/dsrscientist/dataset1/master/HR_Employee_Attrition.csv')}
+                              disabled={loadingSample === 'IBM_HR_Attrition'}
+                            >
+                              {loadingSample === 'IBM_HR_Attrition' ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</>
+                              ) : (
+                                <>Load Dataset <ArrowRight className="ml-2 h-4 w-4" /></>
+                              )}
+                            </Button>
+                          </CardContent>
+                        </Card>
+                        
+                        {/* Titanic Survival */}
+                        <Card className="hover:shadow-lg transition-all duration-300 cursor-pointer border-primary/20 hover:border-primary/40">
+                          <CardHeader>
+                            <CardTitle className="text-base">Titanic Survival</CardTitle>
+                            <Badge variant="secondary" className="w-fit">Classification</Badge>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <p className="text-xs text-muted-foreground">
+                              891 rows · 12 columns · Binary survival classification
+                            </p>
+                            <Button 
+                              className="w-full" 
+                              onClick={() => loadSampleDataset('Titanic_Survival', 'https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv')}
+                              disabled={loadingSample === 'Titanic_Survival'}
+                            >
+                              {loadingSample === 'Titanic_Survival' ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</>
+                              ) : (
+                                <>Load Dataset <ArrowRight className="ml-2 h-4 w-4" /></>
+                              )}
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
               {rawFile && !dataset && !showDelimiterSelector && (
                 <div className="flex justify-end">
                   <Button onClick={() => handleProcess()} disabled={isProcessing}>

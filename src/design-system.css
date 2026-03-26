@@ -1,0 +1,171 @@
+/* 
+ * THE INTELLIGENT MONOLITH
+ * Enterprise SaaS Design System
+ * Creative North Star: Authoritative, Silent, Powerful
+ */
+
+@layer components {
+  /* 
+   * BUTTON SYSTEM - Kinetic Gradients & Ghost Borders
+   */
+  
+  .btn-primary {
+    @apply inline-flex items-center justify-center text-sm font-medium transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50;
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-container)) 100%);
+    color: hsl(var(--on-primary));
+    padding: var(--spacing-3) var(--spacing-6);
+    border-radius: var(--radius-md);
+    letter-spacing: 0.02em;
+    box-shadow: 0 4px 16px rgba(0, 88, 190, 0.2);
+  }
+  .btn-primary:hover {
+    box-shadow: 0 8px 24px rgba(0, 88, 190, 0.3);
+    transform: translateY(-1px);
+  }
+  
+  .btn-secondary {
+    @apply inline-flex items-center justify-center text-sm font-medium transition-all duration-300 bg-transparent border disabled:pointer-events-none disabled:opacity-50;
+    border: 1px solid hsla(var(--outline-variant), 0.2);
+    padding: var(--spacing-3) var(--spacing-6);
+    border-radius: var(--radius-md);
+    letter-spacing: 0.02em;
+  }
+  .btn-secondary:hover {
+    background: hsl(var(--secondary-container));
+  }
+  
+  .btn-tertiary {
+    @apply inline-flex items-center justify-center text-sm font-medium transition-all duration-300 bg-transparent border-transparent text-primary disabled:pointer-events-none disabled:opacity-50;
+    padding: var(--spacing-3) var(--spacing-6);
+  }
+  .btn-tertiary:hover {
+    background: hsl(var(--accent));
+  }
+
+  /* 
+   * TYPOGRAPHY - Editorial Authority 
+   */
+  
+  .text-display-lg {
+    @apply text-5xl sm:text-6xl font-bold;
+    color: hsl(var(--on-secondary-fixed));
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  
+  .text-headline-lg {
+    @apply text-3xl sm:text-4xl font-semibold;
+    color: hsl(var(--on-secondary-fixed));
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+  
+  .text-label-sm {
+    @apply text-xs uppercase tracking-wide font-semibold;
+    letter-spacing: 0.05em;
+    color: hsl(var(--muted-foreground));
+  }
+  
+  .text-body-md {
+    @apply text-base leading-relaxed;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* 
+   * SURFACE ARCHITECTURE - Tonal Layering
+   */
+  
+  .surface-base {
+    @apply bg-surface;
+  }
+  
+  .surface-section {
+    @apply bg-surface-container-low;
+  }
+  
+  .surface-card {
+    @apply bg-surface-container-lowest rounded-lg;
+  }
+
+  /* 
+   * CARD SYSTEM - Premium Layering
+   */
+  
+  .card-editorial {
+    @apply bg-surface-container-lowest p-6 rounded-lg transition-all duration-300;
+    box-shadow: 0 1px 3px rgba(11, 29, 45, 0.03);
+  }
+  .card-editorial:hover {
+    box-shadow: 0 8px 24px rgba(11, 29, 45, 0.06);
+    transform: translateY(-2px);
+  }
+  
+  .card-ai-insight {
+    @apply card-editorial rounded-xl;
+    background: linear-gradient(135deg, hsl(var(--surface-container-lowest)) 0%, hsl(var(--accent)) 100%);
+  }
+
+  /* 
+   * DATA VISUALIZATION CHIPS
+   */
+  
+  .chip-growth {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+    background: hsl(var(--tertiary-fixed));
+    color: hsl(var(--on-tertiary-fixed));
+  }
+  
+  .chip-risk {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+    background: hsl(var(--error-container));
+    color: hsl(var(--on-error-container));
+  }
+  
+  .chip-selection {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+    background: hsl(var(--primary-fixed));
+    color: hsl(var(--on-primary-fixed));
+  }
+
+  /* 
+   * INPUT FIELDS - Bottom Ghost Border
+   */
+  
+  .input-minimal {
+    @apply w-full bg-surface-container-lowest px-4 py-3 text-sm transition-all duration-200;
+    border-bottom: 1px solid hsla(var(--outline-variant), 0.15);
+  }
+  .input-minimal:focus {
+    outline: none;
+    border-bottom: 2px solid hsl(var(--primary));
+  }
+
+  /* 
+   * AMBIENT SHADOWS - Atmospheric not Ink
+   */
+  
+  .shadow-ambient {
+    box-shadow: 0 12px 32px -4px rgba(11, 29, 45, 0.08);
+  }
+  
+  .shadow-ambient-lg {
+    box-shadow: 0 20px 48px -8px rgba(11, 29, 45, 0.12);
+  }
+
+  /* 
+   * GLASS MORPHISM - 80% Opacity with Backdrop Blur
+   */
+  
+  .glass-overlay {
+    @apply bg-surface-container-lowest/80 backdrop-blur-md;
+    box-shadow: 0 12px 32px -4px rgba(11, 29, 45, 0.08);
+  }
+
+  /* 
+   * LAYOUT UTILITIES - Intentional Asymmetry
+   */
+  
+  .layout-editorial {
+    @apply max-w-7xl mx-auto px-8 py-12;
+  }
+}

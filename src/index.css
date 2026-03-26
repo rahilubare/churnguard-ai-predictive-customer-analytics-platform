@@ -2,143 +2,178 @@
 @tailwind components;
 @tailwind utilities;
 
+@import './design-system.css';
+
 @layer base {
   :root {
-    /* Primary Colors - Indigo/Blue Theme */
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* 
+     * THE INTELLIGENT MONOLITH DESIGN SYSTEM
+     * Enterprise SaaS - Editorial-Grade Interface
+     * Creative North Star: Authoritative, Silent, Powerful
+     */
     
-    /* Primary - Vibrant Indigo */
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
+    /* Surface Architecture - No-Line Rule */
+    --surface: 210 40% 98%;              /* #f8f9fb - Base canvas */
+    --surface-container-low: 220 20% 96%; /* #f3f4f6 - Sectioning */
+    --surface-container-lowest: 0 0% 100%; /* #ffffff - Primary focus cards */
+    --surface-container-high: 220 15% 92%; /* #e7e8ea - Deep drill-downs */
     
-    /* Secondary - Soft Blue */
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Primary Colors - Deep Navy & Electric Blue */
+    --primary: 207 100% 36%;              /* #0058be - Deep Navy structural backbone */
+    --primary-container: 207 75% 51%;     /* #2170e4 - Electric Blue kinetic energy */
+    --on-primary: 0 0% 100%;              /* #ffffff - Crisp white text */
+    --on-secondary-fixed: 207 85% 11%;    /* #0b1d2d - Newsroom urgency headers */
     
-    /* Muted */
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Secondary & Variants */
+    --secondary: 220 15% 85%;             /* Soft secondary surface */
+    --secondary-container: 220 15% 90%;   /* Light variant */
+    --on-secondary: 207 85% 11%;          /* Dark text on secondary */
     
-    /* Accent - Light Indigo */
-    --accent: 221.2 83.2% 96%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Data Visualization Chips */
+    --tertiary-fixed: 142 76% 96%;        /* Emerald growth background */
+    --on-tertiary-fixed: 142 76% 20%;     /* Emerald text */
+    --error-container: 350 85% 96%;       /* Rose risk background */
+    --on-error-container: 350 85% 25%;    /* Rose text */
+    --primary-fixed: 207 100% 96%;        /* Selection blue */
+    --on-primary-fixed: 207 100% 30%;     /* Selection text */
     
-    /* Destructive - Red for errors/danger */
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Typography - Editorial Authority */
+    --foreground: 207 85% 11%;            /* #0b1d2d - On secondary fixed */
+    --muted: 220 15% 85%;                 /* Muted backgrounds */
+    --muted-foreground: 220 20% 40%;      /* #424754 - Body text for reduced eye strain */
     
-    /* Success - Emerald Green */
-    --success: 142.1 76.2% 36.3%;
-    --success-foreground: 210 40% 98%;
+    /* Accent & Interactive */
+    --accent: 207 100% 96%;               /* Light primary tint */
+    --accent-foreground: 207 100% 36%;    /* Primary color for text */
     
-    /* Warning - Amber */
-    --warning: 38 92% 56%;
-    --warning-foreground: 210 40% 98%;
+    /* Functional Colors */
+    --destructive: 350 85% 55%;           /* Error rose */
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 76% 30%;               /* Emerald growth */
+    --success-foreground: 0 0% 100%;
+    --warning: 45 90% 50%;                /* Amber warning */
+    --warning-foreground: 207 85% 11%;
+    --info: 199 89% 45%;                  /* Sky info */
+    --info-foreground: 0 0% 100%;
     
-    /* Info - Sky Blue */
-    --info: 199 89% 48%;
-    --info-foreground: 210 40% 98%;
+    /* Ghost Border - 15% opacity fallback */
+    --outline-variant: 220 20% 70%;       /* #c2c6d6 - Ghost border base */
+    --border: 220 20% 90%;                /* Subtle section boundaries */
+    --input: 220 20% 90%;                 /* Input surfaces */
+    --ring: 207 100% 36%;                 /* Primary focus ring */
     
-    /* Border & Ring */
-    --border: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    /* Cards & Popovers */
+    --card: 0 0% 100%;                    /* White cards */
+    --card-foreground: 207 85% 11%;
+    --popover: 0 0% 100%;                 /* Glass morphism base */
+    --popover-foreground: 207 85% 11%;
     
-    /* Card & Popover */
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    /* Chart Palette - Tonal Depth */
+    --chart-1: 207 100% 36%;              /* Primary navy */
+    --chart-2: 142 76% 30%;               /* Success emerald */
+    --chart-3: 45 90% 50%;                /* Warning amber */
+    --chart-4: 350 85% 55%;               /* Error rose */
+    --chart-5: 199 89% 45%;               /* Info sky */
     
-    /* Input */
-    --input: 214.3 31.8% 91.4%;
+    /* Border Radius - Precision */
+    --radius-sm: 0.375rem;                /* 6px - Tight corners */
+    --radius-md: 0.5rem;                  /* 8px - Standard */
+    --radius-lg: 0.625rem;                /* 10px - Relaxed */
+    --radius-xl: 0.75rem;                 /* 12px - AI insight cards */
     
-    /* Chart Colors - Professional Palette */
-    --chart-1: 221.2 83.2% 53.3%; /* Primary Indigo */
-    --chart-2: 142.1 76.2% 36.3%; /* Success Green */
-    --chart-3: 38 92% 56%;        /* Warning Amber */
-    --chart-4: 0 84.2% 60.2%;     /* Error Red */
-    --chart-5: 199 89% 48%;       /* Info Blue */
+    /* Spacing Scale - Intentional Asymmetry */
+    --spacing-24: 6rem;                   /* 96px - Expansive whitespace */
+    --spacing-16: 4rem;                   /* 64px - Editorial gaps */
+    --spacing-12: 3rem;                   /* 48px - Large sections */
+    --spacing-8: 2rem;                    /* 32px - Module spacing */
+    --spacing-6: 1.5rem;                  /* 24px - Standard padding */
+    --spacing-4: 1rem;                    /* 16px - Component spacing */
+    --spacing-3: 0.75rem;                 /* 12px - Tight spacing */
     
-    /* Border Radius */
-    --radius: 0.75rem;
-    
-    /* Sidebar Colors */
-    --sidebar-background: 222.2 84% 4.9%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 221.2 83.2% 53.3%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 221.2 83.2% 15%;
+    /* Sidebar - Deep Navy Authority */
+    --sidebar-background: 207 85% 11%;    /* #0b1d2d - Deep navy */
+    --sidebar-foreground: 210 40% 98%;    /* Light text */
+    --sidebar-primary: 207 100% 36%;      /* Primary blue accent */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 207 100% 20%;       /* Darker navy hover */
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 221.2 83.2% 15%;
-    --sidebar-ring: 221.2 83.2% 53.3%;
+    --sidebar-border: 207 85% 15%;        /* Subtle tonal shift */
+    --sidebar-ring: 207 100% 36%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    /* Surface Architecture - Dark Mode */
+    --surface: 207 85% 8%;                /* Deep navy base */
+    --surface-container-low: 207 85% 10%; /* Slightly lighter sectioning */
+    --surface-container-lowest: 207 85% 12%; /* Cards */
+    --surface-container-high: 207 85% 14%; /* Drill-downs */
+    
+    /* Primary - Brighter for contrast */
+    --primary: 207 100% 50%;              /* Bright electric blue */
+    --primary-container: 207 100% 60%;    /* Lighter variant */
+    --on-primary: 207 85% 8%;             /* Dark text on light buttons */
+    --on-secondary-fixed: 210 40% 98%;    /* Light headers */
+    
+    /* Secondary & Variants */
+    --secondary: 207 50% 15%;
+    --secondary-container: 207 50% 18%;
+    --on-secondary: 210 40% 98%;
+    
+    /* Data Chips - Dark Mode */
+    --tertiary-fixed: 142 76% 15%;
+    --on-tertiary-fixed: 142 76% 85%;
+    --error-container: 350 85% 15%;
+    --on-error-container: 350 85% 85%;
+    --primary-fixed: 207 100% 15%;
+    --on-primary-fixed: 207 100% 70%;
+    
+    /* Typography */
     --foreground: 210 40% 98%;
-    
-    /* Primary - Brighter Indigo for dark mode */
-    --primary: 221.2 83.2% 60%;
-    --primary-foreground: 222.2 84% 4.9%;
-    
-    /* Secondary */
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    
-    /* Muted */
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 207 50% 15%;
+    --muted-foreground: 220 20% 70%;
     
     /* Accent */
-    --accent: 221.2 83.2% 20%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 207 100% 20%;
+    --accent-foreground: 207 100% 70%;
     
-    /* Destructive */
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 210 40% 98%;
+    /* Functional */
+    --destructive: 350 85% 65%;
+    --destructive-foreground: 207 85% 8%;
+    --success: 142 76% 50%;
+    --success-foreground: 207 85% 8%;
+    --warning: 45 90% 60%;
+    --warning-foreground: 207 85% 8%;
+    --info: 199 89% 60%;
+    --info-foreground: 207 85% 8%;
     
-    /* Success */
-    --success: 142.1 76.2% 42%;
-    --success-foreground: 222.2 84% 4.9%;
+    /* Ghost Border */
+    --outline-variant: 220 20% 50%;
+    --border: 207 50% 20%;
+    --input: 207 50% 20%;
+    --ring: 207 100% 50%;
     
-    /* Warning */
-    --warning: 38 92% 60%;
-    --warning-foreground: 222.2 84% 4.9%;
-    
-    /* Info */
-    --info: 199 89% 55%;
-    --info-foreground: 222.2 84% 4.9%;
-    
-    /* Border & Ring */
-    --border: 217.2 32.6% 17.5%;
-    --ring: 221.2 83.2% 60%;
-    
-    /* Card & Popover */
-    --card: 222.2 84% 4.9%;
+    /* Cards */
+    --card: 207 85% 12%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 207 85% 12%;
     --popover-foreground: 210 40% 98%;
     
-    /* Input */
-    --input: 217.2 32.6% 17.5%;
+    /* Charts */
+    --chart-1: 207 100% 50%;
+    --chart-2: 142 76% 50%;
+    --chart-3: 45 90% 60%;
+    --chart-4: 350 85% 65%;
+    --chart-5: 199 89% 60%;
     
-    /* Chart Colors - Enhanced for dark mode */
-    --chart-1: 221.2 83.2% 60%;
-    --chart-2: 142.1 76.2% 42%;
-    --chart-3: 38 92% 60%;
-    --chart-4: 0 62.8% 50%;
-    --chart-5: 199 89% 55%;
-    
-    /* Sidebar Dark Mode */
-    --sidebar-background: 222.2 84% 4.9%;
+    /* Sidebar Dark */
+    --sidebar-background: 207 85% 6%;
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 221.2 83.2% 60%;
-    --sidebar-primary-foreground: 222.2 84% 4.9%;
-    --sidebar-accent: 221.2 83.2% 20%;
+    --sidebar-primary: 207 100% 50%;
+    --sidebar-primary-foreground: 207 85% 8%;
+    --sidebar-accent: 207 100% 15%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 221.2 83.2% 60%;
+    --sidebar-border: 207 50% 20%;
+    --sidebar-ring: 207 100% 50%;
   }
 
   * {
@@ -170,9 +205,10 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-surface text-foreground;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     text-rendering: optimizeLegibility;
+    letter-spacing: -0.01em;
   }
 }
 

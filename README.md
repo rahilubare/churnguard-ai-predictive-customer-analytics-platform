@@ -1,9 +1,4 @@
 # ChurnGuard AI - Predictive Customer Analytics Platform
-
-[![Deploy to Cloudflare][![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/rahilubare/churnguard-ai-predictive-customer-analytics-platform)](https://deploy.workers.cloudflare.com/?url=${repositoryUrl})
-
-A professional-grade, serverless machine learning platform for predicting customer churn with client-side training and edge deployment. ChurnGuard AI enables businesses to upload customer datasets, train Random Forest models in the browser, visualize performance metrics, and deploy models to Cloudflare's edge for low-latency predictions.
-
 ## Features
 
 - **Data Studio**: Drag-and-drop CSV upload with automatic schema detection, data preview, and preprocessing statistics (missing values, categorical encoding).
@@ -28,7 +23,7 @@ A professional-grade, serverless machine learning platform for predicting custom
 
 ### Prerequisites
 - [Bun](https://bun.sh/) (package manager)
-- [Cloudflare Account](https://dash.cloudflare.com/) with Workers enabled
+
 - `wrangler` CLI: `bunx wrangler@latest login`
 
 ### Installation

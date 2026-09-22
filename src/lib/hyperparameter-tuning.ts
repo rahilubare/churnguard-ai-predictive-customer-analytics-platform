@@ -1,107 +1,185 @@
 /**
  * Hyperparameter Tuning Module for ChurnGuard AI
- * Provides grid search and random search optimization
+ * Provides grid search and random search optimization.
+ *
+ * Fixes applied:
+ *  - P0: Replaced biased `sort(() => Math.random() - 0.5)` shuffle with
+ *        seeded Fisher-Yates shuffle. Old version did NOT produce a uniform
+ *        permutation, and was non-reproducible.
+ *  - P1: Removed misleading `bayesianOptimization` export (it was just
+ *        random search). Now named `randomSearchWithRanges` and honest.
+ *  - P3: Added a hard cap on grid-search combinations to prevent users
+ *        from kicking off thousands of trainings in the browser.
+ *  - Bonus: `null` values now pass through (needed for `maxDepth: null`).
+ *  - Bonus: All randomness is driven by a single seed for reproducibility.
  */
 
-import type { HyperparameterConfig, HyperparameterTuningResult, ModelMetrics } from '@shared/types';
+import type { HyperparameterTuningResult, ModelMetrics } from '@shared/types';
 
-/**
- * Parameter grid for tuning
- */
 export interface ParameterGrid {
-  [paramName: string]: (number | string | boolean)[];
+  [paramName: string]: (number | string | boolean | null)[];
 }
 
-/**
- * Training function type
- */
-type TrainFunction = (params: Record<string, number>) => {
-  metrics: ModelMetrics;
-  model: any;
-};
+type ParamValue = number | null;
+type Params = Record<string, ParamValue>;
 
-/**
- * Cross-validation result for a single parameter set
- */
+type TrainAndEvaluateFn = (
+  XTrain: number[][],
+  yTrain: number[],
+  XVal: number[][],
+  yVal: number[],
+  params: Params
+) => ModelMetrics;
+
 interface CVResult {
-  params: Record<string, number>;
+  params: Params;
   meanScore: number;
   stdScore: number;
   foldScores: number[];
 }
 
+// ----------------------------------------------------------------------------
+// Seeded PRNG + Fisher-Yates shuffle
+// ----------------------------------------------------------------------------
+
 /**
- * Grid search for hyperparameter optimization
+ * Mulberry32 — tiny, fast, decent-quality 32-bit PRNG.
+ * Seeded so the same `randomState` gives the same split every run.
  */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * P0 FIX — Fisher-Yates (Knuth) shuffle.
+ * The previous `sort(() => Math.random() - 0.5)` produces a biased,
+ * non-uniform permutation. This is the correct O(n) algorithm.
+ */
+function seededShuffle<T>(arr: T[], rand: () => number): T[] {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+// ----------------------------------------------------------------------------
+// Parameter value coercion
+// ----------------------------------------------------------------------------
+
+/**
+ * P1/P3 FIX — Allow `null` to survive coercion.
+ * The old code did `parseFloat(String(null)) || 0`, turning `null` into 0,
+ * which silently broke `maxDepth: null` (unlimited depth in RF).
+ */
+function coerceParam(v: number | string | boolean | null): ParamValue {
+  if (v === null) return null;
+  if (typeof v === 'number') return v;
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  const parsed = parseFloat(v);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+// ----------------------------------------------------------------------------
+// Combination counting & limiting
+// ----------------------------------------------------------------------------
+
+function countCombinations(grid: ParameterGrid): number {
+  const keys = Object.keys(grid);
+  if (keys.length === 0) return 1;
+  return keys.reduce((acc, k) => acc * Math.max(1, grid[k].length), 1);
+}
+
+const DEFAULT_MAX_COMBINATIONS = 200;
+
+// ----------------------------------------------------------------------------
+// Grid search
+// ----------------------------------------------------------------------------
+
 export function gridSearch(
   X: number[][],
   y: number[],
   paramGrid: ParameterGrid,
-  trainAndEvaluateFn: (
-    XTrain: number[][],
-    yTrain: number[],
-    XVal: number[][],
-    yVal: number[],
-    params: Record<string, number>
-  ) => ModelMetrics,
+  trainAndEvaluateFn: TrainAndEvaluateFn,
   options: {
     cvFolds?: number;
     scoring?: 'accuracy' | 'f1' | 'rocAuc' | 'recall' | 'precision';
-    nJobs?: number;
+    randomState?: number;
+    maxCombinations?: number;
     verbose?: boolean;
   } = {}
 ): HyperparameterTuningResult {
-  const { cvFolds = 5, scoring = 'f1', verbose = false } = options;
+  const {
+    cvFolds = 5,
+    scoring = 'f1',
+    randomState = 42,
+    maxCombinations = DEFAULT_MAX_COMBINATIONS,
+    verbose = false,
+  } = options;
 
-  // Generate all parameter combinations
-  const paramCombinations = generateParamCombinations(paramGrid);
-  
-  if (verbose) {
-    console.log(`Grid search: evaluating ${paramCombinations.length} parameter combinations`);
+  let paramCombinations = generateParamCombinations(paramGrid);
+  const totalCombos = paramCombinations.length;
+
+  // P3 FIX — Hard cap. Otherwise an RF grid like 3×5×3×3 = 135 combos
+  // × 5 folds = 675 fits, which will freeze the worker for hours.
+  if (totalCombos > maxCombinations) {
+    const rand = mulberry32(randomState);
+    paramCombinations = seededShuffle(paramCombinations, rand).slice(0, maxCombinations);
+    console.warn(
+      `[gridSearch] Grid had ${totalCombos} combinations; subsampled to ${maxCombinations}. ` +
+      `Use randomSearch for a more principled exploration.`
+    );
   }
 
+  if (verbose) {
+    console.log(`[gridSearch] Evaluating ${paramCombinations.length} combinations (cv=${cvFolds})`);
+  }
+
+  const rand = mulberry32(randomState);
   const allResults: CVResult[] = [];
 
-  // Evaluate each parameter combination
   for (const params of paramCombinations) {
-    const result = evaluateWithCV(X, y, params, trainAndEvaluateFn, cvFolds, scoring);
+    const result = evaluateWithCV(X, y, params, trainAndEvaluateFn, cvFolds, scoring, rand);
     allResults.push(result);
 
     if (verbose) {
-      console.log(`Params: ${JSON.stringify(params)}, Score: ${result.meanScore.toFixed(4)} (+/- ${result.stdScore.toFixed(4)})`);
+      console.log(
+        `Params: ${JSON.stringify(params)} → ${result.meanScore.toFixed(4)} (±${result.stdScore.toFixed(4)})`
+      );
     }
   }
 
-  // Find best parameters
-  const best = allResults.reduce((prev, curr) => 
-    curr.meanScore > prev.meanScore ? curr : prev
-  );
+  const best = allResults.reduce((prev, curr) => (curr.meanScore > prev.meanScore ? curr : prev));
 
   return {
-    bestParams: best.params,
+    bestParams: best.params as Record<string, number>,
     bestScore: best.meanScore,
-    allResults: allResults.map(r => ({
-      params: r.params,
+    allResults: allResults.map((r) => ({
+      params: r.params as Record<string, number>,
       score: r.meanScore,
       std: r.stdScore,
     })),
   };
 }
 
-/**
- * Random search for hyperparameter optimization
- */
+// ----------------------------------------------------------------------------
+// Random search
+// ----------------------------------------------------------------------------
+
 export function randomSearch(
   X: number[][],
   y: number[],
   paramDistributions: ParameterGrid,
-  trainAndEvaluateFn: (
-    XTrain: number[][],
-    yTrain: number[],
-    XVal: number[][],
-    yVal: number[],
-    params: Record<string, number>
-  ) => ModelMetrics,
+  trainAndEvaluateFn: TrainAndEvaluateFn,
   options: {
     nIter?: number;
     cvFolds?: number;
@@ -110,81 +188,63 @@ export function randomSearch(
     verbose?: boolean;
   } = {}
 ): HyperparameterTuningResult {
-  const { 
-    nIter = 10, 
-    cvFolds = 5, 
-    scoring = 'f1', 
-    randomState = 42,
-    verbose = false 
-  } = options;
+  const { nIter = 10, cvFolds = 5, scoring = 'f1', randomState = 42, verbose = false } = options;
 
-  // Generate random parameter combinations
-  const paramCombinations = generateRandomParamCombinations(paramDistributions, nIter, randomState);
+  const rand = mulberry32(randomState);
+  const paramCombinations = generateRandomParamCombinations(paramDistributions, nIter, rand);
 
-  if (verbose) {
-    console.log(`Random search: evaluating ${nIter} parameter combinations`);
-  }
+  if (verbose) console.log(`[randomSearch] Evaluating ${paramCombinations.length} combinations`);
 
   const allResults: CVResult[] = [];
-
-  // Evaluate each parameter combination
   for (const params of paramCombinations) {
-    const result = evaluateWithCV(X, y, params, trainAndEvaluateFn, cvFolds, scoring);
+    const result = evaluateWithCV(X, y, params, trainAndEvaluateFn, cvFolds, scoring, rand);
     allResults.push(result);
 
     if (verbose) {
-      console.log(`Params: ${JSON.stringify(params)}, Score: ${result.meanScore.toFixed(4)} (+/- ${result.stdScore.toFixed(4)})`);
+      console.log(
+        `Params: ${JSON.stringify(params)} → ${result.meanScore.toFixed(4)} (±${result.stdScore.toFixed(4)})`
+      );
     }
   }
 
-  // Find best parameters
-  const best = allResults.reduce((prev, curr) => 
-    curr.meanScore > prev.meanScore ? curr : prev
-  );
+  const best = allResults.reduce((prev, curr) => (curr.meanScore > prev.meanScore ? curr : prev));
 
   return {
-    bestParams: best.params,
+    bestParams: best.params as Record<string, number>,
     bestScore: best.meanScore,
-    allResults: allResults.map(r => ({
-      params: r.params,
+    allResults: allResults.map((r) => ({
+      params: r.params as Record<string, number>,
       score: r.meanScore,
       std: r.stdScore,
     })),
   };
 }
 
-/**
- * Generate all parameter combinations from grid
- */
-function generateParamCombinations(paramGrid: ParameterGrid): Record<string, number>[] {
+// ----------------------------------------------------------------------------
+// Combination generators
+// ----------------------------------------------------------------------------
+
+function generateParamCombinations(paramGrid: ParameterGrid): Params[] {
   const keys = Object.keys(paramGrid);
-  
-  if (keys.length === 0) {
-    return [{}];
-  }
+  if (keys.length === 0) return [{}];
 
-  const combinations: Record<string, number>[] = [];
-  const values = keys.map(k => paramGrid[k]);
-
-  // Generate Cartesian product
+  const combinations: Params[] = [];
+  const values = keys.map((k) => paramGrid[k]);
   const indices = new Array(keys.length).fill(0);
-  
+
+  // Cartesian product
   while (true) {
-    const combo: Record<string, number> = {};
+    const combo: Params = {};
     for (let i = 0; i < keys.length; i++) {
-      const val = values[i][indices[i]];
-      // Convert to number if possible
-      combo[keys[i]] = typeof val === 'number' ? val : parseFloat(String(val)) || 0;
+      combo[keys[i]] = coerceParam(values[i][indices[i]]);
     }
     combinations.push(combo);
 
-    // Increment indices
     let i = keys.length - 1;
     while (i >= 0 && indices[i] === values[i].length - 1) {
       indices[i] = 0;
       i--;
     }
-    
     if (i < 0) break;
     indices[i]++;
   }
@@ -192,31 +252,20 @@ function generateParamCombinations(paramGrid: ParameterGrid): Record<string, num
   return combinations;
 }
 
-/**
- * Generate random parameter combinations
- */
 function generateRandomParamCombinations(
   paramDistributions: ParameterGrid,
   nIter: number,
-  randomState: number
-): Record<string, number>[] {
+  rand: () => number
+): Params[] {
   const keys = Object.keys(paramDistributions);
-  const combinations: Record<string, number>[] = [];
-  
-  // Simple seeded random
-  let seed = randomState;
-  const random = () => {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    return seed / 0x7fffffff;
-  };
+  const combinations: Params[] = [];
 
   for (let i = 0; i < nIter; i++) {
-    const combo: Record<string, number> = {};
+    const combo: Params = {};
     for (const key of keys) {
       const values = paramDistributions[key];
-      const idx = Math.floor(random() * values.length);
-      const val = values[idx];
-      combo[key] = typeof val === 'number' ? val : parseFloat(String(val)) || 0;
+      const idx = Math.floor(rand() * values.length);
+      combo[key] = coerceParam(values[idx]);
     }
     combinations.push(combo);
   }
@@ -224,76 +273,68 @@ function generateRandomParamCombinations(
   return combinations;
 }
 
-/**
- * Evaluate parameters with cross-validation
- */
+// ----------------------------------------------------------------------------
+// Cross-validation
+// ----------------------------------------------------------------------------
+
 function evaluateWithCV(
   X: number[][],
   y: number[],
-  params: Record<string, number>,
-  trainAndEvaluateFn: (
-    XTrain: number[][],
-    yTrain: number[],
-    XVal: number[][],
-    yVal: number[],
-    params: Record<string, number>
-  ) => ModelMetrics,
+  params: Params,
+  trainAndEvaluateFn: TrainAndEvaluateFn,
   cvFolds: number,
-  scoring: string
+  scoring: string,
+  rand: () => number
 ): CVResult {
-  const n = X.length;
-  const foldScores: number[] = [];
+  const class0: number[] = [];
+  const class1: number[] = [];
+  y.forEach((label, idx) => (label === 0 ? class0 : class1).push(idx));
 
-  // Create stratified folds
-  const class0Indices: number[] = [];
-  const class1Indices: number[] = [];
-  
-  y.forEach((label, idx) => {
-    if (label === 0) class0Indices.push(idx);
-    else class1Indices.push(idx);
-  });
+  // P0 FIX — Seeded Fisher-Yates instead of the biased `.sort(() => rand-0.5)`
+  const shuffled0 = seededShuffle(class0, rand);
+  const shuffled1 = seededShuffle(class1, rand);
 
-  // Shuffle indices
-  const shuffled0 = [...class0Indices].sort(() => Math.random() - 0.5);
-  const shuffled1 = [...class1Indices].sort(() => Math.random() - 0.5);
-
-  // Distribute to folds
   const folds: number[][] = Array.from({ length: cvFolds }, () => []);
   shuffled0.forEach((idx, i) => folds[i % cvFolds].push(idx));
   shuffled1.forEach((idx, i) => folds[i % cvFolds].push(idx));
 
-  // Evaluate each fold
-  for (let fold = 0; fold < cvFolds; fold++) {
-    const valIndices = folds[fold];
-    const trainIndices = folds.flatMap((f, i) => i === fold ? [] : f);
+  const foldScores: number[] = [];
 
-    const XTrain = trainIndices.map(i => X[i]);
-    const yTrain = trainIndices.map(i => y[i]);
-    const XVal = valIndices.map(i => X[i]);
-    const yVal = valIndices.map(i => y[i]);
+  for (let f = 0; f < cvFolds; f++) {
+    const valIndices = folds[f];
+    const trainIndices: number[] = [];
+    for (let k = 0; k < cvFolds; k++) {
+      if (k !== f) trainIndices.push(...folds[k]);
+    }
+
+    // Guard: a fold might be empty if a class is tiny
+    if (trainIndices.length === 0 || valIndices.length === 0) continue;
+
+    const XTrain = trainIndices.map((i) => X[i]);
+    const yTrain = trainIndices.map((i) => y[i]);
+    const XVal = valIndices.map((i) => X[i]);
+    const yVal = valIndices.map((i) => y[i]);
+
+    // Guard: yVal must have both classes for metrics like rocAuc
+    const hasBothClasses = new Set(yVal).size > 1;
+    if (!hasBothClasses) continue;
 
     const metrics = trainAndEvaluateFn(XTrain, yTrain, XVal, yVal, params);
-    
-    const score = getScore(metrics, scoring);
-    foldScores.push(score);
+    foldScores.push(getScore(metrics, scoring));
   }
 
-  const meanScore = foldScores.reduce((a, b) => a + b, 0) / foldScores.length;
-  const stdScore = Math.sqrt(
-    foldScores.reduce((sum, s) => sum + Math.pow(s - meanScore, 2), 0) / foldScores.length
-  );
+  const meanScore =
+    foldScores.length > 0 ? foldScores.reduce((a, b) => a + b, 0) / foldScores.length : 0;
+  const stdScore =
+    foldScores.length > 0
+      ? Math.sqrt(
+        foldScores.reduce((sum, s) => sum + Math.pow(s - meanScore, 2), 0) / foldScores.length
+      )
+      : 0;
 
-  return {
-    params,
-    meanScore,
-    stdScore,
-    foldScores,
-  };
+  return { params, meanScore, stdScore, foldScores };
 }
 
-/**
- * Get score from metrics based on scoring type
- */
 function getScore(metrics: ModelMetrics, scoring: string): number {
   switch (scoring) {
     case 'accuracy':
@@ -311,9 +352,10 @@ function getScore(metrics: ModelMetrics, scoring: string): number {
   }
 }
 
-/**
- * Get default hyperparameter grid for GBDT
- */
+// ----------------------------------------------------------------------------
+// Default grids
+// ----------------------------------------------------------------------------
+
 export function getDefaultGBDTGrid(): ParameterGrid {
   return {
     nEstimators: [50, 100, 200],
@@ -322,93 +364,86 @@ export function getDefaultGBDTGrid(): ParameterGrid {
   };
 }
 
-/**
- * Get default hyperparameter grid for Random Forest
- */
 export function getDefaultRandomForestGrid(): ParameterGrid {
   return {
     nEstimators: [50, 100, 200],
-    maxDepth: [5, 10, 15, 20, null],
+    maxDepth: [5, 10, 15, 20, null], // `null` now survives coercion
     minSamplesSplit: [2, 5, 10],
     minSamplesLeaf: [1, 2, 4],
   };
 }
 
+// ----------------------------------------------------------------------------
+// Ranges → random search (formerly misnamed "bayesianOptimization")
+// ----------------------------------------------------------------------------
+
 /**
- * Bayesian optimization placeholder (simplified version)
- * In production, you would use a library like bayesjs
+ * P1 FIX — Renamed from `bayesianOptimization`. It was never Bayesian; it
+ * was random search over a discretized range grid. Now the name matches
+ * reality. If you later want real Bayesian optimization, drop in
+ * `ml-gaussian-process` and build an Expected-Improvement loop on top of
+ * `randomSearchWithRanges`.
  */
-export function bayesianOptimization(
+export function randomSearchWithRanges(
   X: number[][],
   y: number[],
-  paramRanges: Record<string, { min: number; max: number }>,
-  trainAndEvaluateFn: (
-    XTrain: number[][],
-    yTrain: number[],
-    XVal: number[][],
-    yVal: number[],
-    params: Record<string, number>
-  ) => ModelMetrics,
+  paramRanges: Record<string, { min: number; max: number; steps?: number }>,
+  trainAndEvaluateFn: TrainAndEvaluateFn,
   options: {
     nIter?: number;
-    initPoints?: number;
+    cvFolds?: number;
     scoring?: 'accuracy' | 'f1' | 'rocAuc';
+    randomState?: number;
     verbose?: boolean;
   } = {}
 ): HyperparameterTuningResult {
-  const { nIter = 15, initPoints = 5, scoring = 'f1', verbose = false } = options;
+  const { nIter = 15, cvFolds = 5, scoring = 'f1', randomState = 42, verbose = false } = options;
 
-  // Simplified: just do random search with better exploration
   const paramGrid: ParameterGrid = {};
-  
   for (const [key, range] of Object.entries(paramRanges)) {
-    // Generate evenly spaced values
+    const steps = range.steps ?? 10;
     const values: number[] = [];
-    const step = (range.max - range.min) / 10;
-    for (let v = range.min; v <= range.max; v += step) {
-      values.push(Math.round(v * 100) / 100);
+    const step = (range.max - range.min) / steps;
+    for (let i = 0; i <= steps; i++) {
+      values.push(Math.round((range.min + i * step) * 1000) / 1000);
     }
     paramGrid[key] = values;
   }
 
   return randomSearch(X, y, paramGrid, trainAndEvaluateFn, {
     nIter,
+    cvFolds,
     scoring,
+    randomState,
     verbose,
   });
 }
 
-/**
- * Early stopping callback for iterative algorithms
- */
+// ----------------------------------------------------------------------------
+// Early stopping
+// ----------------------------------------------------------------------------
+
 export class EarlyStoppingCallback {
-  private bestScore: number = -Infinity;
-  private noImprovementCount: number = 0;
+  private bestScore = -Infinity;
+  private noImprovementCount = 0;
   private readonly patience: number;
   private readonly minDelta: number;
 
-  constructor(patience: number = 10, minDelta: number = 0.001) {
+  constructor(patience = 10, minDelta = 0.001) {
     this.patience = patience;
     this.minDelta = minDelta;
   }
 
-  /**
-   * Check if training should stop
-   */
   shouldStop(currentScore: number): boolean {
     if (currentScore > this.bestScore + this.minDelta) {
       this.bestScore = currentScore;
       this.noImprovementCount = 0;
       return false;
     }
-
     this.noImprovementCount++;
     return this.noImprovementCount >= this.patience;
   }
 
-  /**
-   * Get the best score achieved
-   */
   getBestScore(): number {
     return this.bestScore;
   }

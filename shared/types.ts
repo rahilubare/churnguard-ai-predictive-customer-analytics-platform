@@ -41,6 +41,7 @@ export interface ColumnStat {
   unique: number;
   type: 'numerical' | 'categorical';
   valueCounts: Record<string, number>;
+  isSampled?: boolean; // ✅ P3: true when unique/valueCounts are derived from a stride sample
 }
 export interface ModelMetrics {
   accuracy: number;
